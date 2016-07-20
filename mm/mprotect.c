@@ -280,6 +280,7 @@ static long change_pte_range(struct mmu_gather *tlb,
 	bool prot_numa = cp_flags & MM_CP_PROT_NUMA;
 	bool uffd_wp = cp_flags & MM_CP_UFFD_WP;
 	bool uffd_wp_resolve = cp_flags & MM_CP_UFFD_WP_RESOLVE;
+	unsigned long irq_flags;
 	int nr_ptes;
 
 	tlb_change_page_size(tlb, PAGE_SIZE);
@@ -325,6 +326,7 @@ static long change_pte_range(struct mmu_gather *tlb,
 
 			nr_ptes = mprotect_folio_pte_batch(folio, pte, oldpte, max_nr_ptes, flags);
 
+			irq_flags = hard_local_irq_save();
 			oldpte = modify_prot_start_ptes(vma, addr, pte, nr_ptes);
 			ptent = pte_modify(oldpte, newprot);
 
@@ -353,6 +355,7 @@ static long change_pte_range(struct mmu_gather *tlb,
 			else
 				prot_commit_flush_ptes(vma, addr, pte, oldpte, ptent,
 					nr_ptes, /* idx = */ 0, /* set_write = */ false, tlb);
+			hard_local_irq_restore(irq_flags);			
 			pages += nr_ptes;
 		} else if (is_swap_pte(oldpte)) {
 			swp_entry_t entry = pte_to_swp_entry(oldpte);
