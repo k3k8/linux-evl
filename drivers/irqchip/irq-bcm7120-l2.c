@@ -85,7 +85,7 @@ static void bcm7120_l2_intc_suspend(struct irq_chip_generic *gc)
 	struct bcm7120_l2_intc_data *b = gc->private;
 	struct irq_chip_type *ct = gc->chip_types;
 
-	guard(raw_spinlock)(&gc->lock);
+	guard(hard_spinlock)(&gc->lock);
 	if (b->can_wake)
 		irq_reg_writel(gc, gc->mask_cache | gc->wake_active, ct->regs.mask);
 }
@@ -95,7 +95,7 @@ static void bcm7120_l2_intc_resume(struct irq_chip_generic *gc)
 	struct irq_chip_type *ct = gc->chip_types;
 
 	/* Restore the saved mask */
-	guard(raw_spinlock)(&gc->lock);
+	guard(hard_spinlock)(&gc->lock);
 	irq_reg_writel(gc, gc->mask_cache, ct->regs.mask);
 }
 
