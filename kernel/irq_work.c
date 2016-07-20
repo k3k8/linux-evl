@@ -76,15 +76,16 @@ void __weak arch_irq_work_raise(void)
 	 */
 }
 
-static __always_inline void irq_work_raise(struct irq_work *work)
+void __weak irq_local_work_raise(void)
 {
-	if (trace_ipi_send_cpu_enabled() && arch_irq_work_has_interrupt())
-		trace_ipi_send_cpu(smp_processor_id(), _RET_IP_, work->func);
-
 	arch_irq_work_raise();
 }
 
-/* Enqueue on current CPU, work must already be claimed and preempt disabled */
+/* Enqueue on current CPU, work must already be claimed and preempt
+   disabled.  Dovetail: there is the assumption by oob callers that
+   any work set pending on the local CPU is going to be handled
+   immediately on return to inband mode, therefore rt_lazy_work only
+   applies to inband callers. */
 static void __irq_work_queue_local(struct irq_work *work)
 {
 	struct llist_head *list;
@@ -96,6 +97,7 @@ static void __irq_work_queue_local(struct irq_work *work)
 	if (work_flags & IRQ_WORK_LAZY)
 		lazy_work = true;
 	else if (IS_ENABLED(CONFIG_PREEMPT_RT) &&
+		 running_inband() &&
 		 !(work_flags & IRQ_WORK_HARD_IRQ))
 		rt_lazy_work = true;
 
@@ -108,8 +110,11 @@ static void __irq_work_queue_local(struct irq_work *work)
 		return;
 
 	/* If the work is "lazy", handle it from next tick if any */
-	if (!lazy_work || tick_nohz_tick_stopped())
-		irq_work_raise(work);
+	if (!lazy_work || tick_nohz_tick_stopped()) {
+		if (trace_ipi_send_cpu_enabled() && arch_irq_work_has_interrupt())
+			trace_ipi_send_cpu(smp_processor_id(), _RET_IP_, work->func);
+		irq_local_work_raise();
+	}
 }
 
 /* Enqueue the irq work @work on the current CPU */
