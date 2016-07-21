@@ -190,6 +190,9 @@ static int init_file(struct file *f, int flags, const struct cred *cred)
 	f->f_pos	= 0;
 	f->f_wb_err	= 0;
 	f->f_sb_err	= 0;
+#ifdef CONFIG_DOVETAIL
+	f->f_oob_ctx	= NULL;
+#endif
 
 	/*
 	 * We're SLAB_TYPESAFE_BY_RCU so initialize f_ref last. While
