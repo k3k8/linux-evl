@@ -22,6 +22,8 @@
 
 #include <asm/mmu.h>
 
+#include <dovetail/mm_info.h>
+
 #ifndef AT_VECTOR_SIZE_ARCH
 #define AT_VECTOR_SIZE_ARCH 0
 #endif
@@ -1032,6 +1034,9 @@ struct mm_struct {
 #ifdef CONFIG_HUGETLB_PAGE
 		atomic_long_t hugetlb_usage;
 #endif
+#ifdef CONFIG_DOVETAIL
+		struct oob_mm_state oob_state;
+#endif
 		struct work_struct async_put_work;
 
 #ifdef CONFIG_IOMMU_MM_DATA
@@ -1605,6 +1610,7 @@ enum {
 # define MMF_DUMP_MASK_DEFAULT_ELF	0
 #endif
 					/* leave room for more dump flags */
+#define MMF_DOVETAILED		15	/* mm belongs to a dovetailed process */
 #define MMF_VM_MERGEABLE	16	/* KSM may merge identical pages */
 #define MMF_VM_HUGEPAGE		17	/* set when mm is available for khugepaged */
 
