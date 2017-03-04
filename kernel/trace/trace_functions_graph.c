@@ -183,6 +183,7 @@ int trace_graph_entry(struct ftrace_graph_ent *trace,
 	struct trace_array_cpu *data;
 	struct fgraph_times *ftimes;
 	unsigned int trace_ctx;
+	unsigned long flags;
 	long disabled;
 	int ret = 0;
 	int cpu;
