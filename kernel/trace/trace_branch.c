@@ -52,7 +52,7 @@ probe_likely_condition(struct ftrace_likely_data *f, int val, int expect)
 	if (unlikely(!tr))
 		return;
 
-	raw_local_irq_save(flags);
+	flags = hard_local_irq_save();
 	current->trace_recursion |= TRACE_BRANCH_BIT;
 	data = this_cpu_ptr(tr->array_buffer.data);
 	if (atomic_read(&data->disabled))
@@ -83,7 +83,7 @@ probe_likely_condition(struct ftrace_likely_data *f, int val, int expect)
 
  out:
 	current->trace_recursion &= ~TRACE_BRANCH_BIT;
-	raw_local_irq_restore(flags);
+	hard_local_irq_restore(flags);
 }
 
 static inline
