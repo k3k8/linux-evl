@@ -172,7 +172,13 @@ struct pt_regs {
 
 	/* Only valid for some EL1 exceptions. */
 	u64 lockdep_hardirqs;
+#ifdef CONFIG_IRQ_PIPELINE
+	u64 exit_rcu : 1,
+		oob_on_entry : 1,
+		stalled_on_entry : 1;
+#else
 	u64 exit_rcu;
+#endif
 };
 
 /* For correct stack alignment, pt_regs has to be a multiple of 16 bytes. */
