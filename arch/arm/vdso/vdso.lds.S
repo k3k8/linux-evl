@@ -21,6 +21,9 @@ OUTPUT_ARCH(arm)
 SECTIONS
 {
 	PROVIDE(_vdso_data = . - VDSO_DATA_SIZE);
+#ifdef CONFIG_GENERIC_CLOCKSOURCE_VDSO
+	PROVIDE(_vdso_priv = _vdso_data - VDSO_PRIV_SIZE);
+#endif	
 
 	. = SIZEOF_HEADERS;
 
