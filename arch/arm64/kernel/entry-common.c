@@ -206,6 +206,17 @@ static __always_inline void __exit_to_user_mode(void)
 	unstall_inband_nocheck();
 }
 
+static inline void do_retuser(void)
+{
+	unsigned long thread_flags;
+
+	if (dovetailing()) {
+		thread_flags = current_thread_info()->flags;
+		if (thread_flags & _TIF_RETUSER)
+			inband_retuser_notify();
+	}
+}
+
 static void do_notify_resume(struct pt_regs *regs, unsigned long thread_flags)
 {
 	WARN_ON_ONCE(irq_pipeline_debug() && running_oob());
@@ -245,9 +256,11 @@ static void do_notify_resume(struct pt_regs *regs, unsigned long thread_flags)
 				fpsimd_restore_current_state();
 		}
 
+		do_retuser();
 		local_daif_mask();
 		thread_flags = read_thread_flags();
-	} while (thread_flags & _TIF_WORK_MASK);
+		/* RETUSER might have switched us oob */
+	} while (running_inband() && thread_flags & _TIF_WORK_MASK);
 
 	/*
 	 * irq_pipeline: trace_hardirqs_off was in effect on entry, we
@@ -652,6 +665,7 @@ static __always_inline void fpsimd_syscall_exit(void)
  */
 static void debug_exception_enter(struct pt_regs *regs)
 {
+	mark_trap_entry(ARM64_TRAP_DEBUG, regs);
 	preempt_disable();
 
 	/* This code is a bit fragile.  Test it. */
@@ -662,6 +676,7 @@ NOKPROBE_SYMBOL(debug_exception_enter);
 static void debug_exception_exit(struct pt_regs *regs)
 {
 	preempt_enable_no_resched();
+	mark_trap_exit(ARM64_TRAP_DEBUG, regs);
 }
 NOKPROBE_SYMBOL(debug_exception_exit);
 
@@ -1070,6 +1085,7 @@ static void noinstr el0_softstp(struct pt_regs *regs, unsigned long esr)
 		arm64_apply_bp_hardening();
 
 	enter_from_user_mode(regs);
+	mark_trap_entry(ARM64_TRAP_DEBUG, regs);
 	/*
 	 * After handling a breakpoint, we suspend the breakpoint
 	 * and use single-step to move to the next instruction.
@@ -1080,6 +1096,7 @@ static void noinstr el0_softstp(struct pt_regs *regs, unsigned long esr)
 		local_daif_restore(DAIF_PROCCTX);
 		do_el0_softstep(esr, regs);
 	}
+	mark_trap_exit(ARM64_TRAP_DEBUG, regs);
 	exit_to_user_mode(regs);
 }
 
@@ -1099,8 +1116,10 @@ static void noinstr el0_watchpt(struct pt_regs *regs, unsigned long esr)
 static void noinstr el0_brk64(struct pt_regs *regs, unsigned long esr)
 {
 	enter_from_user_mode(regs);
+	mark_trap_entry(ARM64_TRAP_DEBUG, regs);
 	local_daif_restore(DAIF_PROCCTX);
 	do_el0_brk64(esr, regs);
+	mark_trap_exit(ARM64_TRAP_DEBUG, regs);
 	exit_to_user_mode(regs);
 }
 
