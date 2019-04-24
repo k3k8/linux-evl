@@ -67,7 +67,7 @@ noinstr void syscall_enter_from_user_mode_prepare(struct pt_regs *regs)
 {
 	enter_from_user_mode(regs);
 	instrumentation_begin();
-	local_irq_enable();
+	syscall_enter_from_user_enable_irqs();
 	instrumentation_end();
 }
 
