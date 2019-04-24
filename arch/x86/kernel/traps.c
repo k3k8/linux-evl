@@ -330,11 +330,19 @@ static noinstr bool handle_bug(struct pt_regs *regs)
 	 * state to what it was at the exception site.
 	 */
 	if (regs->flags & X86_EFLAGS_IF)
+<<<<<<< HEAD
 		raw_local_irq_enable();
 
 	switch (ud_type) {
 	case BUG_UD2:
 		if (report_bug(regs->ip, regs) == BUG_TRAP_TYPE_WARN) {
+=======
+		hard_local_irq_enable();
+	if (ud_type == BUG_UD2) {
+		if (report_bug(regs->ip, regs) == BUG_TRAP_TYPE_WARN ||
+		    handle_cfi_failure(regs) == BUG_TRAP_TYPE_WARN) {
+			regs->ip += LEN_UD2;
+>>>>>>> 63ee0303ce7d4 (x86: irq_pipeline: add IRQ pipeline core)
 			handled = true;
 			break;
 		}
@@ -373,7 +381,7 @@ static noinstr bool handle_bug(struct pt_regs *regs)
 	}
 
 	if (regs->flags & X86_EFLAGS_IF)
-		raw_local_irq_disable();
+		hard_local_irq_disable();
 	instrumentation_end();
 
 	return handled;

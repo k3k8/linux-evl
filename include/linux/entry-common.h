@@ -9,6 +9,7 @@
 #include <linux/sched.h>
 #include <linux/context_tracking.h>
 #include <linux/livepatch.h>
+#include <linux/irq_pipeline.h>
 #include <linux/resume_user_mode.h>
 #include <linux/tick.h>
 #include <linux/kmsan.h>
@@ -171,6 +172,30 @@ static __always_inline long syscall_enter_from_user_mode_work(struct pt_regs *re
 	return syscall;
 }
 
+static __always_inline void
+syscall_enter_from_user_enable_irqs(void)
+{
+	if (running_inband()) {
+		/*
+		 * If pipelining interrupts, prepare for emulating a
+		 * stall -> unstall transition (we are currently
+		 * unstalled), fixing up the IRQ trace state in order
+		 * to keep lockdep happy (and silent).
+		 */
+		stall_inband_nocheck();
+		hard_cond_local_irq_enable();
+		local_irq_enable();
+	} else {
+		/*
+		 * We are running on the out-of-band stage, don't mess
+		 * with the in-band interrupt state. This is none of
+		 * our business. We may manipulate the hardware state
+		 * only.
+		 */
+		hard_local_irq_enable();
+	}
+}
+
 /**
  * syscall_enter_from_user_mode - Establish state and check and handle work
  *				  before invoking a syscall
@@ -195,7 +220,7 @@ static __always_inline long syscall_enter_from_user_mode(struct pt_regs *regs, l
 	enter_from_user_mode(regs);
 
 	instrumentation_begin();
-	local_irq_enable();
+	syscall_enter_from_user_enable_irqs();
 	ret = syscall_enter_from_user_mode_work(regs, syscall);
 	instrumentation_end();
 
@@ -214,7 +239,7 @@ static inline void local_irq_enable_exit_to_user(unsigned long ti_work);
 #ifndef local_irq_enable_exit_to_user
 static inline void local_irq_enable_exit_to_user(unsigned long ti_work)
 {
-	local_irq_enable();
+	local_irq_enable_full();
 }
 #endif
 
@@ -229,7 +254,7 @@ static inline void local_irq_disable_exit_to_user(void);
 #ifndef local_irq_disable_exit_to_user
 static inline void local_irq_disable_exit_to_user(void)
 {
-	local_irq_disable();
+	local_irq_disable_full();
 }
 #endif
 
@@ -319,6 +344,8 @@ static __always_inline void exit_to_user_mode_prepare(struct pt_regs *regs)
 {
 	unsigned long ti_work;
 
+	check_hard_irqs_disabled();
+
 	lockdep_assert_irqs_disabled();
 
 	/* Flush pending rcuog wakeup before the last need_resched() check */
@@ -364,6 +391,8 @@ static __always_inline void exit_to_user_mode(void)
 	user_enter_irqoff();
 	arch_exit_to_user_mode();
 	lockdep_hardirqs_on(CALLER_ADDR0);
+	if (running_inband())
+		unstall_inband();
 }
 
 /**
@@ -440,6 +469,12 @@ void irqentry_enter_from_user_mode(struct pt_regs *regs);
  */
 void irqentry_exit_to_user_mode(struct pt_regs *regs);
 
+enum irqentry_info {
+	IRQENTRY_INBAND_UNSTALLED = 0,
+	IRQENTRY_INBAND_STALLED,
+	IRQENTRY_OOB,
+};
+
 #ifndef irqentry_state
 /**
  * struct irqentry_state - Opaque object for exception state storage
@@ -447,6 +482,7 @@ void irqentry_exit_to_user_mode(struct pt_regs *regs);
  *            exit path has to invoke ct_irq_exit().
  * @lockdep: Used exclusively in the irqentry_nmi_*() calls; ensures that
  *           lockdep state is restored correctly on exit from nmi.
+ * @stage_info: Information about pipeline state and current stage on IRQ entry.
  *
  * This opaque object is filled in by the irqentry_*_enter() functions and
  * must be passed back into the corresponding irqentry_*_exit() functions
@@ -461,6 +497,9 @@ typedef struct irqentry_state {
 		bool	exit_rcu;
 		bool	lockdep;
 	};
+#ifdef CONFIG_IRQ_PIPELINE
+	enum irqentry_info stage_info;
+#endif
 } irqentry_state_t;
 #endif
 
