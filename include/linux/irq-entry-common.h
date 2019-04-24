@@ -110,7 +110,7 @@ static inline void local_irq_enable_exit_to_user(unsigned long ti_work);
 #ifndef local_irq_enable_exit_to_user
 static inline void local_irq_enable_exit_to_user(unsigned long ti_work)
 {
-	local_irq_enable();
+	local_irq_enable_full();
 }
 #endif
 
@@ -125,7 +125,7 @@ static inline void local_irq_disable_exit_to_user(void);
 #ifndef local_irq_disable_exit_to_user
 static inline void local_irq_disable_exit_to_user(void)
 {
-	local_irq_disable();
+	local_irq_disable_full();
 }
 #endif
 
@@ -215,6 +215,8 @@ static __always_inline void exit_to_user_mode_prepare(struct pt_regs *regs)
 {
 	unsigned long ti_work;
 
+	check_hard_irqs_disabled();
+
 	lockdep_assert_irqs_disabled();
 
 	/* Flush pending rcuog wakeup before the last need_resched() check */
@@ -261,6 +263,8 @@ static __always_inline void exit_to_user_mode(void)
 	user_enter_irqoff();
 	arch_exit_to_user_mode();
 	lockdep_hardirqs_on(CALLER_ADDR0);
+	if (running_inband())
+		unstall_inband_nocheck();
 }
 
 /**
@@ -291,6 +295,12 @@ void irqentry_enter_from_user_mode(struct pt_regs *regs);
  */
 void irqentry_exit_to_user_mode(struct pt_regs *regs);
 
+enum irqentry_info {
+	IRQENTRY_INBAND_UNSTALLED = 0,
+	IRQENTRY_INBAND_STALLED,
+	IRQENTRY_OOB,
+};
+
 #ifndef irqentry_state
 /**
  * struct irqentry_state - Opaque object for exception state storage
@@ -298,6 +308,7 @@ void irqentry_exit_to_user_mode(struct pt_regs *regs);
  *            exit path has to invoke ct_irq_exit().
  * @lockdep: Used exclusively in the irqentry_nmi_*() calls; ensures that
  *           lockdep state is restored correctly on exit from nmi.
+ * @stage_info: Information about pipeline state and current stage on IRQ entry.
  *
  * This opaque object is filled in by the irqentry_*_enter() functions and
  * must be passed back into the corresponding irqentry_*_exit() functions
@@ -312,6 +323,9 @@ typedef struct irqentry_state {
 		bool	exit_rcu;
 		bool	lockdep;
 	};
+#ifdef CONFIG_IRQ_PIPELINE
+	enum irqentry_info stage_info;
+#endif
 } irqentry_state_t;
 #endif
 
