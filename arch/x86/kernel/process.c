@@ -636,9 +636,9 @@ void speculation_ctrl_update(unsigned long tif)
 	unsigned long flags;
 
 	/* Forced update. Make sure all relevant TIF flags are different */
-	local_irq_save(flags);
+	flags = hard_local_irq_save();
 	__speculation_ctrl_update(~tif, tif);
-	local_irq_restore(flags);
+	hard_local_irq_restore(flags);
 }
 
 /* Called from seccomp/prctl update */
@@ -735,6 +735,9 @@ void arch_cpu_idle(void)
 
 /*
  * We use this if we don't have any better idle routine..
+ *
+ * IRQ pipeline: safe_halt() returns with hard irqs on, caller does
+ * not need to force enable.
  */
 void __cpuidle default_idle(void)
 {
@@ -760,9 +763,10 @@ struct cpumask cpus_stop_mask;
 void __noreturn stop_this_cpu(void *dummy)
 {
 	struct cpuinfo_x86 *c = this_cpu_ptr(&cpu_info);
-	unsigned int cpu = smp_processor_id();
+	unsigned int cpu;
 
-	local_irq_disable();
+	hard_local_irq_disable();
+	cpu = smp_processor_id();
 
 	/*
 	 * Remove this CPU from the online mask and disable it
@@ -901,12 +905,14 @@ static __cpuidle void mwait_idle(void)
 
 		__monitor((void *)&current_thread_info()->flags, 0, 0);
 		if (need_resched()) {
+			hard_cond_local_irq_enable();
 			raw_local_irq_enable();
 			goto out;
 		}
 
 		__sti_mwait(0, 0);
 	} else {
+		hard_cond_local_irq_enable();
 		raw_local_irq_enable();
 	}
 
