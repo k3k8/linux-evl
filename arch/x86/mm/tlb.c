@@ -1013,6 +1013,8 @@ struct mm_struct *use_temporary_mm(struct mm_struct *temp_mm)
 {
 	struct mm_struct *prev_mm;
 
+	WARN_ON_ONCE(irq_pipeline_debug() && !irqs_disabled_full());
+
 	lockdep_assert_preemption_disabled();
 	guard(irqsave)();
 
@@ -1046,6 +1048,8 @@ struct mm_struct *use_temporary_mm(struct mm_struct *temp_mm)
 
 void unuse_temporary_mm(struct mm_struct *prev_mm)
 {
+	WARN_ON_ONCE(irq_pipeline_debug() && !irqs_disabled_full());
+
 	lockdep_assert_preemption_disabled();
 	guard(irqsave)();
 
