@@ -305,7 +305,7 @@ static noinstr bool handle_bug(struct pt_regs *regs)
 	 * state to what it was at the exception site.
 	 */
 	if (regs->flags & X86_EFLAGS_IF)
-		raw_local_irq_enable();
+		hard_local_irq_enable();
 
 	switch (ud_type) {
 	case BUG_UD2:
@@ -329,7 +329,7 @@ static noinstr bool handle_bug(struct pt_regs *regs)
 	}
 
 	if (regs->flags & X86_EFLAGS_IF)
-		raw_local_irq_disable();
+		hard_local_irq_disable();
 	instrumentation_end();
 
 	return handled;
