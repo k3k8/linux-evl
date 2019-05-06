@@ -45,6 +45,14 @@
 				 SYSCALL_WORK_SYSCALL_EXIT_TRAP	|	\
 				 ARCH_SYSCALL_WORK_EXIT)
 
+/*
+ * Status codes of syscall entry when Dovetail is enabled. Must not
+ * conflict with valid syscall numbers. And with -1 which seccomp uses
+ * to skip an syscall.
+ */
+#define EXIT_SYSCALL_OOB	(-2)
+#define EXIT_SYSCALL_TAIL	(-3)
+
 /**
  * syscall_enter_from_user_mode_prepare - Establish state and enable interrupts
  * @regs:	Pointer to currents pt_regs
@@ -91,6 +99,17 @@ long syscall_trace_enter(struct pt_regs *regs, long syscall,
 static __always_inline long syscall_enter_from_user_mode_work(struct pt_regs *regs, long syscall)
 {
 	unsigned long work = READ_ONCE(current_thread_info()->syscall_work);
+	int ret;
+
+	/*
+	 * Pipeline the syscall to the companion core if the current
+	 * task wants this. Compiled out if not dovetailing.
+	 */
+	ret = pipeline_syscall(syscall, regs);
+	if (ret > 0)	/* out-of-band, bail out. */
+		return EXIT_SYSCALL_OOB;
+	if (ret < 0)		/* in-band, tail work only. */
+		return EXIT_SYSCALL_TAIL;
 
 	if (work & SYSCALL_WORK_ENTER)
 		syscall = syscall_trace_enter(regs, syscall, work);
