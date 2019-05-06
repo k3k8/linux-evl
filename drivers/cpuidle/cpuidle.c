@@ -239,6 +239,7 @@ noinstr int cpuidle_enter_state(struct cpuidle_device *dev,
 	 */
 	if (!irq_cpuidle_enter(dev, target_state)) {
 		default_idle_call();
+		instrumentation_end();
 		return -EBUSY;
 	}
 
