@@ -20,6 +20,13 @@ static __always_inline const struct vdso_rng_data *__arch_get_vdso_u_rng_data(vo
 }
 #endif
 
+#ifndef __arch_get_vdso_u_priv_data
+static __always_inline struct vdso_priv_data *__arch_get_vdso_u_priv_data(void)
+{
+	return &vdso_u_priv_data;
+}
+#endif
+
 #endif /* CONFIG_GENERIC_VDSO_DATA_STORE */
 
 #ifndef __arch_update_vsyscall
