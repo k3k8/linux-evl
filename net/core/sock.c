@@ -1303,6 +1303,12 @@ int sk_setsockopt(struct sock *sk, int level, int optname,
 
 	sockopt_lock_sock(sk);
 
+	if (sock_oob_capable(sock)) {
+		ret = sock_inband_setopt_redirect(sk, level, optname, optval, optlen);
+		if (ret != -ENOIOCTLCMD)
+			goto out;
+	}
+
 	switch (optname) {
 	case SO_DEBUG:
 		if (val && !sockopt_capable(CAP_NET_ADMIN))
@@ -1665,6 +1671,7 @@ set_sndbuf:
 		ret = -ENOPROTOOPT;
 		break;
 	}
+out:
 	sockopt_release_sock(sk);
 	return ret;
 }
@@ -1734,12 +1741,20 @@ int sk_getsockopt(struct sock *sk, int level, int optname,
 	} v;
 
 	int lv = sizeof(int);
-	int len;
+	int len, ret;
 
 	if (copy_from_sockptr(&len, optlen, sizeof(int)))
 		return -EFAULT;
 	if (len < 0)
 		return -EINVAL;
+
+	if (sock_oob_capable(sock)) {
+		ret = sock_inband_getopt_redirect(sk, level, optname, optval, &len);
+		if (ret == 0)
+			goto lenout;
+		if (ret != -ENOIOCTLCMD)
+			return ret;
+	}
 
 	memset(&v, 0, sizeof(v));
 
@@ -2334,6 +2349,8 @@ static void __sk_destruct(struct rcu_head *head)
 	struct sock *sk = container_of(head, struct sock, sk_rcu);
 	struct net *net = sock_net(sk);
 	struct sk_filter *filter;
+
+	sock_oob_destruct(sk);
 
 	if (sk->sk_destruct)
 		sk->sk_destruct(sk);
