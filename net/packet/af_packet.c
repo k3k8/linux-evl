@@ -3359,6 +3359,7 @@ static int packet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len
 {
 	struct sockaddr_ll *sll = (struct sockaddr_ll *)uaddr;
 	struct sock *sk = sock->sk;
+	int ret;
 
 	/*
 	 *	Check legality
@@ -3369,7 +3370,11 @@ static int packet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len
 	if (sll->sll_family != AF_PACKET)
 		return -EINVAL;
 
-	return packet_do_bind(sk, NULL, sll->sll_ifindex, sll->sll_protocol);
+	ret = packet_do_bind(sk, NULL, sll->sll_ifindex, sll->sll_protocol);
+	if (sock_oob_capable(sk->sk_socket))
+		ret = sock_oob_bind(sk, uaddr, addr_len);
+
+	return ret;
 }
 
 static struct proto packet_proto = {
@@ -3416,6 +3421,7 @@ static int packet_create(struct net *net, struct socket *sock, int protocol,
 
 	init_completion(&po->skb_completion);
 	sk->sk_family = PF_PACKET;
+	sk->sk_protocol	= protocol;
 	po->num = proto;
 
 	packet_cached_dev_reset(po);
