@@ -2271,6 +2271,8 @@ static void __sk_destruct(struct rcu_head *head)
 	struct net *net = sock_net(sk);
 	struct sk_filter *filter;
 
+	sock_oob_destruct(sk);
+
 	if (sk->sk_destruct)
 		sk->sk_destruct(sk);
 
