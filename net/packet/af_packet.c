@@ -3413,6 +3413,7 @@ static int packet_create(struct net *net, struct socket *sock, int protocol,
 
 	init_completion(&po->skb_completion);
 	sk->sk_family = PF_PACKET;
+	sk->sk_protocol	= protocol;
 	po->num = proto;
 	po->xmit = dev_queue_xmit;
 
