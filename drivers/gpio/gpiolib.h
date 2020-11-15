@@ -134,6 +134,17 @@ int gpiod_set_array_value_complex(bool raw, bool can_sleep,
 
 int gpiod_set_transitory(struct gpio_desc *desc, bool transitory);
 
+#ifdef CONFIG_GPIOLIB_OOB
+int gpiod_get_array_value_oob(struct gpio_chip *gc,
+			      unsigned long *value_bitmap,
+			      u32 num_descs,
+			      struct gpio_desc **desc_array);
+int gpiod_set_array_value_oob(struct gpio_chip *gc,
+			      const unsigned long *value_bitmap,
+			      u32 num_descs,
+			      struct gpio_desc **desc_array);
+#endif
+
 extern spinlock_t gpio_lock;
 extern struct list_head gpio_devices;
 
