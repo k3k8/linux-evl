@@ -15,6 +15,7 @@
 #include <linux/gfp.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
+#include <linux/mman.h>
 #include <linux/sched.h>
 #include <linux/signal.h>
 #include <linux/slab.h>
@@ -32,6 +33,8 @@ enum vdso_abi {
 	VDSO_ABI_AA64,
 	VDSO_ABI_AA32,
 };
+
+#define VPRIV_NR_PAGES __VPRIV_PAGES
 
 struct vdso_abi_info {
 	const char *name;
@@ -100,6 +103,9 @@ static int __init __vdso_init(enum vdso_abi abi)
 		vdso_pagelist[i] = pfn_to_page(pfn + i);
 
 	vdso_info[abi].cm->pages = vdso_pagelist;
+#ifdef CONFIG_GENERIC_CLOCKSOURCE_VDSO
+	vdso_data->cs_type_seq = CLOCKSOURCE_VDSO_NONE << 16 | 1;
+#endif
 
 	return 0;
 }
@@ -183,13 +189,15 @@ static int __setup_additional_pages(enum vdso_abi abi,
 {
 	unsigned long vdso_base, vdso_text_len, vdso_mapping_len;
 	unsigned long gp_flags = 0;
+	unsigned long unused;
 	void *ret;
 
 	BUILD_BUG_ON(VVAR_NR_PAGES != __VVAR_PAGES);
 
 	vdso_text_len = vdso_info[abi].vdso_pages << PAGE_SHIFT;
 	/* Be sure to map the data page */
-	vdso_mapping_len = vdso_text_len + VVAR_NR_PAGES * PAGE_SIZE;
+	vdso_mapping_len = vdso_text_len + VVAR_NR_PAGES * PAGE_SIZE
+		+ VPRIV_NR_PAGES * PAGE_SIZE;
 
 	vdso_base = get_unmapped_area(NULL, 0, vdso_mapping_len, 0, 0);
 	if (IS_ERR_VALUE(vdso_base)) {
@@ -197,6 +205,27 @@ static int __setup_additional_pages(enum vdso_abi abi,
 		goto up_fail;
 	}
 
+	/*
+	 * Install the vDSO mappings we need:
+	 *
+	 * +----------------+
+	 * |     vpriv      |  PAGE_SIZE (private anon page if GENERIC_CLOCKSOURCE_VDSO)
+	 * |----------------|
+	 * |     vvar       |  PAGE_SIZE (shared)
+	 * |----------------|
+	 * |     text       |  text_pages * PAGE_SIZE (shared)
+	 * |        ...     |
+	 * +----------------+
+	 */
+	if (VPRIV_NR_PAGES > 0 && do_mmap(NULL, vdso_base, PAGE_SIZE,
+			PROT_READ | PROT_WRITE,
+		       	MAP_ANONYMOUS | MAP_PRIVATE | MAP_FIXED,
+			0, 0, &unused, NULL) != vdso_base) {
+		ret = ERR_PTR(-EINVAL);
+		goto up_fail;
+	}
+
+	vdso_base += VPRIV_NR_PAGES * PAGE_SIZE; /* Skip private area. */
 	ret = _install_special_mapping(mm, vdso_base, VVAR_NR_PAGES * PAGE_SIZE,
 				       VM_READ|VM_MAYREAD|VM_PFNMAP,
 				       &vvar_map);

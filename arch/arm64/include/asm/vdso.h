@@ -6,6 +6,11 @@
 #define __ASM_VDSO_H
 
 #define __VVAR_PAGES    2
+#ifdef CONFIG_GENERIC_CLOCKSOURCE_VDSO
+#define __VPRIV_PAGES   1
+#else
+#define __VPRIV_PAGES   0
+#endif
 
 #ifndef __ASSEMBLY__
 
