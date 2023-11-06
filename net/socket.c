@@ -1936,6 +1936,9 @@ int __sys_bind_socket(struct socket *sock, struct sockaddr_storage *address,
 		err = READ_ONCE(sock->ops)->bind(sock,
 						 (struct sockaddr *)address,
 						 addrlen);
+	if (!err && sock_oob_capable(sock))
+		err = sock_oob_bind(sock, (struct sockaddr *)
+				&address, addrlen);
 	return err;
 }
 
@@ -2161,15 +2164,14 @@ int __sys_connect_file(struct file *file, struct sockaddr_storage *address,
 	if (err)
 		goto out;
 
-	if (sock_oob_capable(sock)) {
+	err = READ_ONCE(sock->ops)->connect(sock, (struct sockaddr *)address,
+				addrlen, sock->file->f_flags | file_flags);
+	if (!err && sock_oob_capable(sock)) {
 		err = sock_oob_connect(sock, (struct sockaddr *)address,
 				addrlen);
 		if (err)
 			goto out;
 	}
-
-	err = READ_ONCE(sock->ops)->connect(sock, (struct sockaddr *)address,
-				addrlen, sock->file->f_flags | file_flags);
 out:
 	return err;
 }
