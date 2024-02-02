@@ -1787,9 +1787,9 @@ static inline void skb_set_owner_edemux(struct sk_buff *skb, struct sock *sk)
 #ifdef CONFIG_NET_OOB
 static inline void sock_oob_destruct(struct sock *sk)
 {
-	void sock_oob_detach(struct sock *sk);
+	void sock_oob_destroy(struct sock *sk);
 	if (sk->oob_data)
-		sock_oob_detach(sk);
+		sock_oob_destroy(sk);
 }
 #else
 static inline void sock_oob_destruct(struct sock *sk) { }
