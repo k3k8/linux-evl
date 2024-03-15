@@ -5103,6 +5103,8 @@ ssize_t skb_splice_from_iter(struct sk_buff *skb, struct iov_iter *iter,
 
 #ifdef CONFIG_NET_OOB
 
+#include <net/page_pool/helpers.h>
+
 extern unsigned int sysctl_max_oob_skb;
 
 struct skbuff_oob_pool {
