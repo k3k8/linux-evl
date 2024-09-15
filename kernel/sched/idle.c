@@ -199,6 +199,8 @@ static void cpuidle_idle_call(bool stop_tick)
 
 		if (irq_pipeline_can_idle())
 			default_idle_call();
+		else
+			local_irq_enable_full();
 		goto exit_idle;
 	}
 
