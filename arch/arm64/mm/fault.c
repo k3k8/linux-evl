@@ -670,7 +670,7 @@ static int __kprobes do_page_fault(unsigned long far, unsigned long esr,
 	if (fault_signal_pending(fault, regs)) {
 		if (!user_mode(regs))
 			goto no_context;
-		return 0;
+		goto out;
 	}
 lock_mmap:
 
@@ -708,7 +708,7 @@ retry:
 
 	/* The fault is fully completed (including releasing mmap lock) */
 	if (fault & VM_FAULT_COMPLETED)
-		return 0;
+		goto out;
 
 	if (fault & VM_FAULT_RETRY) {
 		mm_flags |= FAULT_FLAG_TRIED;
