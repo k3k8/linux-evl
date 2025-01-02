@@ -1032,6 +1032,7 @@ static inline int ra_has_index(struct file_ra_state *ra, pgoff_t index)
  * @f_llist: work queue entrypoint
  * @f_ra: file's readahead state
  * @f_freeptr: Pointer used by SLAB_TYPESAFE_BY_RCU file cache (don't touch.)
+ * @f_oob_ctx: Dovetail: context information for oob-enabled files
  */
 struct file {
 	file_ref_t			f_ref;
@@ -1070,7 +1071,9 @@ struct file {
 		freeptr_t		f_freeptr;
 	};
 	/* --- cacheline 3 boundary (192 bytes) --- */
-	void			       *oob_data;
+#ifdef CONFIG_DOVETAIL
+	void			       *f_oob_ctx;
+#endif
 } __randomize_layout
   __attribute__((aligned(4)));	/* lest something weird decides that 2 is OK */
 
