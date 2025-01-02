@@ -1786,7 +1786,7 @@ static inline void skb_set_owner_edemux(struct sk_buff *skb, struct sock *sk)
 
 static inline bool sock_oob_capable(struct socket *sock)
 {
-	return sock && sock->sk && sock->file && sock->file->oob_data;
+	return sock && sock->sk && sock->sk->oob_data;
 }
 
 int sock_oob_attach(struct socket *sock);
