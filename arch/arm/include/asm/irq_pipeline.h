@@ -8,6 +8,8 @@
 
 #include <asm-generic/irq_pipeline.h>
 
+void arm_preempt_schedule_irq(void);
+
 #ifdef CONFIG_IRQ_PIPELINE
 
 /*
@@ -107,8 +109,6 @@ static inline void arch_handle_irq_pipelined(struct pt_regs *regs)
 	} while (0)
 
 int handle_arch_irq_pipelined(struct pt_regs *regs);
-
-void arm_preempt_schedule_irq(void);
 
 #else /* !CONFIG_IRQ_PIPELINE */
 
