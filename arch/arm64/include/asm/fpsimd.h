@@ -55,7 +55,6 @@ extern void fpsimd_flush_thread(void);
 extern void fpsimd_signal_preserve_current_state(void);
 extern void fpsimd_preserve_current_state(void);
 extern void fpsimd_restore_current_state(void);
-extern void fpsimd_restore_current_oob(void);
 extern void fpsimd_update_current_state(struct user_fpsimd_state const *state);
 extern void fpsimd_kvm_prepare(void);
 
@@ -67,6 +66,12 @@ extern void fpsimd_bind_state_to_cpu(struct user_fpsimd_state *state,
 
 extern void fpsimd_flush_task_state(struct task_struct *target);
 extern void fpsimd_save_and_flush_cpu_state(void);
+
+#ifdef CONFIG_DOVETAIL
+extern void fpsimd_restore_current_oob(void);
+extern void fpsimd_suspend_inband(void);
+extern void fpsimd_resume_inband(void);
+#endif
 
 static inline bool thread_sm_enabled(struct thread_struct *thread)
 {
