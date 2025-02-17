@@ -79,6 +79,7 @@ int arch_dup_task_struct(struct task_struct *dst,
 #define TIF_SYSCALL_TRACEPOINT	10	/* syscall tracepoint for ftrace */
 #define TIF_SECCOMP		11	/* syscall secure computing */
 #define TIF_SYSCALL_EMU		12	/* syscall emulation active */
+#define TIF_KERNEL_FP_PREEMPTED	13	/* Dovetail: kernel mode FPSIMD section preempted by OOB */
 #define TIF_MEMDIE		18	/* is terminating due to OOM killer */
 #define TIF_FREEZE		19
 #define TIF_RESTORE_SIGMASK	20
