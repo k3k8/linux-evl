@@ -150,6 +150,7 @@ config IRQ_PIPELINE
 	depends on HAVE_IRQ_PIPELINE
 	select IRQ_DOMAIN
 	select IRQ_DOMAIN_NOMAP
+	select IRQ_WORK
 	default n
 	help
 	  Activate this option if you want the interrupt pipeline to be
