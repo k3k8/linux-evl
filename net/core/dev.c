@@ -3186,13 +3186,26 @@ static void __netif_reschedule(struct Qdisc *q)
 	struct softnet_data *sd;
 	unsigned long flags;
 
-	local_irq_save(flags);
-	sd = this_cpu_ptr(&softnet_data);
-	q->next_sched = NULL;
-	*sd->output_queue_tailp = q;
-	sd->output_queue_tailp = &q->next_sched;
-	raise_softirq_irqoff(NET_TX_SOFTIRQ);
-	local_irq_restore(flags);
+	if (net_running_oob()) {
+		/* We can't migrate CPU from the oob stage. */
+		sd = this_cpu_ptr(&softnet_data);
+		q->next_sched = NULL;
+		flags = hard_local_irq_save();
+		*sd->output_queue_tailp = q;
+		sd->output_queue_tailp = &q->next_sched;
+		raise_softirq_irqoff(NET_TX_SOFTIRQ);
+		hard_local_irq_restore(flags);
+	} else {
+		local_irq_save(flags);
+		sd = this_cpu_ptr(&softnet_data);
+		q->next_sched = NULL;
+		hard_net_local_irq_disable();
+		*sd->output_queue_tailp = q;
+		sd->output_queue_tailp = &q->next_sched;
+		hard_net_local_irq_enable();
+		raise_softirq_irqoff(NET_TX_SOFTIRQ);
+		local_irq_restore(flags);
+	}
 }
 
 void __netif_schedule(struct Qdisc *q)
