@@ -4425,6 +4425,7 @@ void napi_complete_oob(struct napi_struct *n);
 bool netif_deliver_oob(struct sk_buff *skb);
 void netif_tx_lock_oob(struct netdev_queue *txq);
 void netif_tx_unlock_oob(struct netdev_queue *txq);
+void netif_tx_wake_oob(struct netdev_queue *txq); /* rcu_read locked */
 void process_inband_tx_backlog(struct softnet_data *sd);
 int netif_oob_switch_port(struct net_device *dev, bool enabled);
 bool netif_oob_get_port(struct net_device *dev);
@@ -4486,6 +4487,10 @@ static inline void netif_tx_lock_oob(struct netdev_queue *txq)
 }
 
 static inline void netif_tx_unlock_oob(struct netdev_queue *txq)
+{
+}
+
+static inline void netif_tx_wake_oob(struct netdev_queue *txq)
 {
 }
 
