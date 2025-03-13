@@ -4374,6 +4374,7 @@ void napi_complete_oob(struct napi_struct *n);
 bool netif_deliver_oob(struct sk_buff *skb);
 void netif_tx_lock_oob(struct netdev_queue *txq);
 void netif_tx_unlock_oob(struct netdev_queue *txq);
+void netif_tx_wake_oob(struct netdev_queue *txq); /* rcu_read locked */
 void process_inband_tx_backlog(struct softnet_data *sd);
 
 #else  /* !CONFIG_NET_OOB */
@@ -4407,6 +4408,10 @@ static inline void netif_tx_lock_oob(struct netdev_queue *txq)
 }
 
 static inline void netif_tx_unlock_oob(struct netdev_queue *txq)
+{
+}
+
+static inline void netif_tx_wake_oob(struct netdev_queue *txq)
 {
 }
 
