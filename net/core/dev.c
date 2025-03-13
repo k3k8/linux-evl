@@ -3184,6 +3184,7 @@ void netif_tx_wake_queue(struct netdev_queue *dev_queue)
 		struct Qdisc *q;
 
 		rcu_read_lock();
+		netif_tx_wake_oob(dev_queue);
 		q = rcu_dereference(dev_queue->qdisc);
 		__netif_schedule(q);
 		rcu_read_unlock();
@@ -5109,6 +5110,9 @@ static void kick_rx_inband(struct irq_work *irq_work)
 {
 	__raise_softirq_irqoff(NET_RX_SOFTIRQ);
 }
+
+__weak void netif_tx_wake_oob(struct netdev_queue *txq)
+{ }
 
 #else
 
