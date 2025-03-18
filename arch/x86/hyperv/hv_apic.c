@@ -111,7 +111,7 @@ static bool __send_ipi_mask_ex(const struct cpumask *mask, int vector,
 	if (!(ms_hyperv.hints & HV_X64_EX_PROCESSOR_MASKS_RECOMMENDED))
 		return false;
 
-	local_irq_save(flags);
+	flags = hard_local_irq_save();
 	arg = (struct hv_send_ipi_ex **)this_cpu_ptr(hyperv_pcpu_input_arg);
 
 	ipi_arg = *arg;
@@ -148,7 +148,7 @@ static bool __send_ipi_mask_ex(const struct cpumask *mask, int vector,
 			      ipi_arg, NULL);
 
 ipi_mask_ex_done:
-	local_irq_restore(flags);
+	hard_local_irq_restore(flags);
 	return hv_result_success(status);
 }
 
