@@ -522,7 +522,7 @@ static void __send_ipi_mask(const struct cpumask *mask, int vector)
 	if (cpumask_empty(mask))
 		return;
 
-	local_irq_save(flags);
+	flags = hard_local_irq_save();
 
 	switch (vector) {
 	default:
@@ -560,7 +560,7 @@ static void __send_ipi_mask(const struct cpumask *mask, int vector)
 			  ret);
 	}
 
-	local_irq_restore(flags);
+	hard_local_irq_restore(flags);
 }
 
 static void kvm_send_ipi_mask(const struct cpumask *mask, int vector)
