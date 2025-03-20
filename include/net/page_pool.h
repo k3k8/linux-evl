@@ -250,6 +250,8 @@ bool page_pool_return_skb_page(struct page *page);
 
 struct page_pool *page_pool_create(const struct page_pool_params *params);
 
+struct page_pool *page_pool_get_page_pool(struct page *page);
+
 struct xdp_mem_info;
 
 #ifdef CONFIG_PAGE_POOL
