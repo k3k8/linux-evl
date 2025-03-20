@@ -277,15 +277,9 @@ static inline bool page_pool_is_oob(struct page_pool *pool)
 
 static inline unsigned int page_pool_cache_size(struct page_pool *pool)
 {
-	return IS_ENABLED(CONFIG_PAGE_POOL_OOB) &&
-		pool->slow.flags & PP_FLAG_PAGE_OOB ? pool->p.pool_size : PP_ALLOC_CACHE_SIZE;
+	return page_pool_is_oob(pool) ? pool->p.pool_size : PP_ALLOC_CACHE_SIZE;
 }
 
-static inline unsigned int page_pool_cache_refill(struct page_pool *pool)
-{
-	return IS_ENABLED(CONFIG_PAGE_POOL_OOB) &&
-		pool->slow.flags & PP_FLAG_PAGE_OOB ? pool->p.pool_size : PP_ALLOC_CACHE_REFILL;
-}
 #else
 static inline void page_pool_destroy(struct page_pool *pool)
 {

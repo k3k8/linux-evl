@@ -6648,7 +6648,7 @@ restart:
 	 * currently diverting traffic to a companion core.
 	 */
 	if (netif_oob_diversion(napi->dev) && netdev_is_oob_capable(napi->dev))
-		goto out;
+		return;
 
 	if (!IS_ENABLED(CONFIG_PREEMPT_RT))
 		preempt_disable();

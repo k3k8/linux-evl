@@ -190,6 +190,8 @@ static void page_pool_struct_check(void)
 static noinline netmem_ref __page_pool_alloc_pages_slow(struct page_pool *pool,
 							gfp_t gfp);
 
+static int page_pool_init_cache(struct page_pool *pool);
+
 static int page_pool_init(struct page_pool *pool,
 			  const struct page_pool_params *params,
 			  int cpuid)
@@ -303,19 +305,13 @@ static int page_pool_init(struct page_pool *pool,
 		static_branch_inc(&page_pool_mem_providers);
 	}
 
-#ifdef CONFIG_PAGE_POOL_OOB
-	pool->alloc.cache = kzalloc_node(
-		sizeof(struct page *) * params->pool_size,
-		GFP_KERNEL, params->nid);
-	if (pool->alloc.cache == NULL) {
-		err = -ENOMEM;
-		goto free_ptr_ring;
-	}
-	raw_spin_lock_init(&pool->alloc.oob_lock);
-	/* Populate the fast cache of oob-accessed pools at init. */
-	if (page_pool_is_oob(pool))
-		__page_pool_alloc_pages_slow(pool, GFP_KERNEL);
+	if (page_pool_init_cache(pool)) {
+#ifdef CONFIG_PAGE_POOL_STATS
+		free_percpu(pool->recycle_stats);
 #endif
+		ptr_ring_cleanup(&pool->ring, NULL);
+		return -ENOMEM;
+	}
 
 	return 0;
 
@@ -388,13 +384,16 @@ struct page_pool *page_pool_create(const struct page_pool_params *params)
 }
 EXPORT_SYMBOL(page_pool_create);
 
-static void page_pool_return_page(struct page_pool *pool, netmem_ref netmem);
+void page_pool_return_page(struct page_pool *pool, netmem_ref netmem);
 
 static noinline netmem_ref page_pool_refill_alloc_cache(struct page_pool *pool)
 {
 	struct ptr_ring *r = &pool->ring;
 	netmem_ref netmem;
 	int pref_nid; /* preferred NUMA node */
+
+	if (WARN_ON_ONCE(page_pool_is_oob(pool)))
+		return 0;
 
 	/* Quicker fallback, avoid locks when ring is empty */
 	if (__ptr_ring_empty(r)) {
@@ -431,7 +430,7 @@ static noinline netmem_ref page_pool_refill_alloc_cache(struct page_pool *pool)
 			netmem = 0;
 			break;
 		}
-	} while (pool->alloc.count < page_pool_cache_refill(pool));
+	} while (pool->alloc.count < PP_ALLOC_CACHE_REFILL);
 
 	/* Return last page */
 	if (likely(pool->alloc.count > 0)) {
@@ -540,11 +539,82 @@ static struct page *__page_pool_alloc_page_order(struct page_pool *pool,
 	return page;
 }
 
+static int page_pool_init_cache(struct page_pool *pool)
+{
+#ifdef CONFIG_PAGE_POOL_OOB
+	unsigned int pool_size = pool->p.pool_size;
+	unsigned int pp_order = pool->p.order;
+	unsigned int pp_flags = pool->slow.flags;
+	int i, nr_pages, nid = pool->p.nid;
+	struct page *page;
+	netmem_ref netmem;
+
+	pool->alloc.cache = kzalloc_node(sizeof(struct page *) * pool_size,
+					GFP_KERNEL, nid);
+	if (pool->alloc.cache == NULL)
+		return -ENOMEM;
+
+	raw_spin_lock_init(&pool->alloc.oob_lock);
+
+	if (!page_pool_is_oob(pool))
+		return 0;
+
+	/*
+	 * Populate the fast cache of an oob-accessed pool at
+	 * init. Unlike for regular in-band pools, high order pages
+	 * may live in the fast cache of oob pools.
+	 */
+	if (unlikely(pp_order)) {
+		for (nr_pages = 0; nr_pages < pool_size; nr_pages++) {
+			page = __page_pool_alloc_page_order(pool, GFP_KERNEL);
+			if (!page)
+				goto fail;
+			pool->alloc.cache[nr_pages] = page_to_netmem(page);
+		}
+	} else {
+		nr_pages = alloc_pages_bulk_array_node(
+			GFP_KERNEL, nid, pool_size, (struct page **)pool->alloc.cache);
+		if (unlikely(nr_pages < pool_size))
+			goto fail;
+
+		for (i = 0; i < nr_pages; i++) {
+			netmem = pool->alloc.cache[i];
+			if ((pp_flags & PP_FLAG_DMA_MAP) &&
+				unlikely(!page_pool_dma_map(pool, netmem))) {
+				goto fail;
+			}
+
+			page_pool_set_pp_info(pool, netmem);
+			pool->alloc.cache[i] = netmem;
+			pool->pages_state_hold_cnt++;
+			trace_page_pool_state_hold(pool, netmem,
+						pool->pages_state_hold_cnt);
+		}
+	}
+
+	pool->alloc.count = nr_pages;
+
+	return 0;
+
+fail:
+	while (nr_pages-- > 0) {
+		netmem = pool->alloc.cache[nr_pages];
+		page_pool_return_page(pool, netmem);
+	}
+
+	kfree(pool->alloc.cache);
+
+	return -ENOMEM;
+#endif	/* !CONFIG_PAGE_POOL_OOB */
+
+	return 0;
+}
+
 /* slow path */
 static noinline netmem_ref __page_pool_alloc_pages_slow(struct page_pool *pool,
 							gfp_t gfp)
 {
-	const int bulk = page_pool_cache_refill(pool);
+	const int bulk = PP_ALLOC_CACHE_REFILL;
 	unsigned int pp_order = pool->p.order;
 	bool dma_map = pool->dma_map;
 	netmem_ref netmem;
@@ -809,9 +879,11 @@ __page_pool_put_page(struct page_pool *pool, netmem_ref netmem,
 		/*
 		 * If a page from an oob-accessed pool is still
 		 * referenced when released or the fast cache would
-		 * overflow, we bark at the console then bluntly leak
-		 * it. This situation should never occur, or would
-		 * denote a serious API usage issue anyway.
+		 * unexpectedly overflow (meaning we attempt to double
+		 * release or free an invalid page), we bark at the
+		 * console then bluntly leak it. This situation should
+		 * never occur, or would denote a critical bug in the
+		 * calling code.
 		 */
 		if (WARN_ON(dovetail_debug() && !__page_pool_page_can_be_recycled(netmem)))
 			return 0;
@@ -820,10 +892,10 @@ __page_pool_put_page(struct page_pool *pool, netmem_ref netmem,
 		raw_spin_lock_irqsave(&pool->alloc.oob_lock, flags);
 		ret = page_pool_recycle_in_cache(netmem, pool);
 		raw_spin_unlock_irqrestore(&pool->alloc.oob_lock, flags);
-		WARN_ON(!ret);
+		WARN_ON(dovetail_debug() && !ret);
 		return 0;
 	}
-#endif
+#endif	/* !CONFIG_PAGE_POOL_OOB */
 
 	lockdep_assert_no_hardirq();
 
