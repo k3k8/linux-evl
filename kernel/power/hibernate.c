@@ -343,6 +343,7 @@ static int create_image(int platform_mode)
 	syscore_resume();
 
  Enable_irqs:
+	hard_cond_local_irq_enable();
 	system_state = SYSTEM_RUNNING;
 	local_irq_enable();
 
@@ -513,6 +514,7 @@ static int resume_target_kernel(bool platform_mode)
 	syscore_resume();
 
  Enable_irqs:
+	hard_cond_local_irq_enable();
 	system_state = SYSTEM_RUNNING;
 	local_irq_enable();
 
