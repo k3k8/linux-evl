@@ -1146,6 +1146,24 @@ int skb_cow_data_for_xdp(struct page_pool *pool, struct sk_buff **pskb,
 EXPORT_SYMBOL(skb_cow_data_for_xdp);
 
 #if IS_ENABLED(CONFIG_PAGE_POOL)
+struct page_pool *napi_pp_get_pool(netmem_ref netmem)
+{
+	netmem = netmem_compound_head(netmem);
+
+	/* page->pp_magic is OR'ed with PP_SIGNATURE after the allocation
+	 * in order to preserve any existing bits, such as bit 0 for the
+	 * head page of compound page and bit 1 for pfmemalloc page, so
+	 * mask those bits for freeing side when doing below checking,
+	 * and page_is_pfmemalloc() is checked in __page_pool_put_page()
+	 * to avoid recycling the pfmemalloc page.
+	 */
+	if (unlikely(!is_pp_netmem(netmem)))
+		return NULL;
+
+	return netmem_get_pp(netmem);
+}
+EXPORT_SYMBOL(napi_pp_get_pool);
+
 bool napi_pp_put_page(netmem_ref netmem)
 {
 	netmem = netmem_compound_head(netmem);
@@ -1164,7 +1182,6 @@ bool napi_pp_put_page(netmem_ref netmem)
 
 	return true;
 }
-EXPORT_SYMBOL(napi_pp_put_page);
 #endif
 
 static bool skb_pp_recycle(struct sk_buff *skb, void *data)
