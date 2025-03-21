@@ -304,9 +304,6 @@ EXPORT_SYMBOL(sysctl_max_oob_skb);
 __weak void free_skb_oob(struct sk_buff *skb)
 { }
 
-__weak void free_skb_head_oob(struct sk_buff *skb)
-{ }
-
 bool recycle_skb_oob(struct sk_buff *skb)
 {
 	/*
