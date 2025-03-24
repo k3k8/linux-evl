@@ -5213,9 +5213,9 @@ static inline void __skb_inband_clone(struct sk_buff *skb)
  *	__skb_oob_free_head - Called from the in-band net core after
  *      the last reference to the buffer head (->users) was dropped,
  *      and any (shared) data was unref'ed (and possibly freed). By
- *      construction, this is only called for buffer heads which
- *      refer(red) to non-oob storage. Buffers with oob heads _and_
- *      storage must flow through free_skb_oob() instead.
+ *      construction, this is only called for skbs which refer to
+ *      non-oob storage. Skbs coming from the oob pool _and_ conveying
+ *      oob storage must flow through free_skb_oob() instead.
  */
 static inline bool __skb_oob_free_head(struct sk_buff *skb)
 {
