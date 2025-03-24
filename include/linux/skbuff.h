@@ -5283,11 +5283,10 @@ static inline void __skb_inband_clone(struct sk_buff *skb)
 /**
  *	__skb_oob_free_head - Called from the in-band net core after
  *      the last reference to the buffer (->users) was dropped, and
- *      any (shared) data was unref'ed (and possibly freed). By
- *      construction, this is only called for buffers which refer(red)
- *      to non-oob storage. Out-of-band allocated buffers which also
- *      convey out-of-band acessible storage must flow through
- *      free_skb_oob() instead.
+ *      any (shared) data was unref'ed (and possibly freed).By
+ *      construction, this is only called for skbs which refer to
+ *      non-oob storage. Skbs coming from the oob pool _and_ conveying
+ *      oob storage must flow through free_skb_oob() instead.
  */
 static inline bool __skb_oob_free_head(struct sk_buff *skb)
 {

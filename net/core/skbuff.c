@@ -351,6 +351,9 @@ static struct sk_buff *napi_skb_cache_get(void)
 	struct napi_alloc_cache *nc = this_cpu_ptr(&napi_alloc_cache);
 	struct sk_buff *skb;
 
+	/* oob calls should go through __napi_build_skb() first. */
+	WARN_ON_ONCE(running_oob());
+
 	local_lock_nested_bh(&napi_alloc_cache.bh_lock);
 	if (unlikely(!nc->skb_count)) {
 		nc->skb_count = kmem_cache_alloc_bulk(net_hotdata.skbuff_cache,
@@ -546,11 +549,18 @@ static struct sk_buff *__napi_build_skb(void *data, unsigned int frag_size)
 {
 	struct sk_buff *skb;
 
-	skb = napi_skb_cache_get();
-	if (unlikely(!skb))
-		return NULL;
+	if (running_oob()) {
+		skb = get_oob_skb();
+		if (unlikely(!skb))
+			return NULL;
+	} else {
+		skb = napi_skb_cache_get();
+		if (unlikely(!skb))
+			return NULL;
 
-	memset(skb, 0, offsetof(struct sk_buff, tail));
+		memset(skb, 0, offsetof(struct sk_buff, tail));
+	}
+
 	__build_skb_around(skb, data, frag_size);
 
 	return skb;
@@ -676,6 +686,11 @@ EXPORT_SYMBOL(put_oob_skb);
 
 static inline void init_oob_cache(void)
 { }
+
+static inline void put_oob_skb(struct sk_buff *skb)
+{
+	BUG();
+}
 
 #endif	/* !CONFIG_NET_OOB */
 
@@ -919,6 +934,13 @@ struct sk_buff *napi_alloc_skb(struct napi_struct *napi, unsigned int len)
 	struct sk_buff *skb;
 	bool pfmemalloc;
 	void *data;
+
+	/*
+	 * Only napi_build_skb() is allowed from the out-of-band
+	 * stage.
+	 */
+	if (WARN_ON_ONCE(running_oob()))
+		return NULL;
 
 	DEBUG_NET_WARN_ON_ONCE(!in_softirq());
 	len += NET_SKB_PAD + NET_IP_ALIGN;
@@ -1574,6 +1596,11 @@ static void napi_skb_cache_put(struct sk_buff *skb)
 	struct napi_alloc_cache *nc = this_cpu_ptr(&napi_alloc_cache);
 	u32 i;
 
+	if (skb_is_oob(skb)) {
+		put_oob_skb(skb);
+		return;
+	}
+
 	if (!kasan_mempool_poison_object(skb))
 		return;
 
@@ -1640,8 +1667,7 @@ void napi_consume_skb(struct sk_buff *skb, int budget)
 		return;
 
 	skb_release_all(skb, SKB_CONSUMED);
-	if (!__skb_oob_free_head(skb))
-		napi_skb_cache_put(skb);
+	napi_skb_cache_put(skb);
 }
 EXPORT_SYMBOL(napi_consume_skb);
 
