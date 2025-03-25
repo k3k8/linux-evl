@@ -142,7 +142,7 @@ void lock_vector_lock(void)
 	 * entry. In addition, we assume that hard irqs are on as well
 	 * (which is the regular case).
 	 */
-	WARN_ON_ONCE(irq_pipeline_debug() && !hard_irqs_disabled());
+	WARN_ON_ONCE(irq_pipeline_debug() && hard_irqs_disabled());
 	hard_cond_local_irq_disable();
 	/* Used to the online set of cpus does not change
 	 * during assign_irq_vector.
