@@ -5280,6 +5280,12 @@ bool netif_receive_oob(struct sk_buff *skb)
 	 * packet is not picked, then decide whether we should leave
 	 * it to the in-band caller, or defer it to the RX softirq if
 	 * currently running oob.
+	 *
+	 * CAUTION: we _need_ the sirq indirection via inband_rx_work,
+	 * to make sure softirqs are going to be checked on return
+	 * from it. i.e. we could not simply set the RX softirq as
+	 * pending and be done with it, because we could not tell
+	 * whether it is going to be handled asap.
 	 */
 	if (dev && netif_oob_diversion(dev)) {
 		if (netif_deliver_oob(skb))
@@ -6462,9 +6468,9 @@ bool napi_complete_done(struct napi_struct *n, int work_done)
 	bool ret = true;
 
 	if (netif_oob_diversion(n->dev)) {
-		napi_complete_oob(n);
 		if (net_running_oob())
 			return true;
+		napi_complete_oob(n);
 	}
 
 	/*
