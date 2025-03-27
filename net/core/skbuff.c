@@ -322,14 +322,6 @@ bool recycle_skb_oob(struct sk_buff *skb)
 	return false;
 }
 
-void finalize_skb_inband(struct sk_buff *skb)
-{
-	if (skb->fclone != SKB_FCLONE_UNAVAILABLE)
-		__kfree_skb(skb);
-	else
-		__kfree_skb_defer(skb);
-}
-
 /*
  * Pool for out-of-band allocation of buffer heads. The implementation
  * is trivial ATM, we may improve this with per-CPU caches in the
