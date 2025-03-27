@@ -5267,7 +5267,11 @@ static inline dma_addr_t skb_oob_storage_addr(const struct sk_buff *skb)
 
 bool recycle_skb_oob(struct sk_buff *skb);
 void free_skb_oob(struct sk_buff *skb);
-void finalize_skb_inband(struct sk_buff *skb);
+
+static inline void finalize_skb_inband(struct sk_buff *skb)
+{
+	__kfree_skb(skb);
+}
 
 /**
  *	__skb_inband_clone - In-band specific setup for skbs for a
