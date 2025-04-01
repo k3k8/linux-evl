@@ -1046,7 +1046,7 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	unsigned short queue;
 	struct fec_enet_priv_tx_q *txq;
 	struct netdev_queue *nq;
-	int ret = 0;
+	enum netdev_tx ret;
 
 	queue = skb_get_queue_mapping(skb);
 	txq = fep->tx_queue[queue];
@@ -1054,8 +1054,8 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	/*
 	 * Lock out any sender running from the alternate execution
-	 * stage from other CPUs (i.e. oob vs in-band). Clearly,
-	 * in-band tasks should refrain from sending output through an
+	 * stage from any CPU (i.e. oob vs in-band). Clearly, in-band
+	 * tasks should refrain from sending output through an
 	 * oob-enabled device when aiming at the lowest possible
 	 * latency for the oob players, but we still allow shared use
 	 * for flexibility though, which comes in handy when a single
@@ -1067,10 +1067,8 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		ret = fec_enet_txq_submit_tso(txq, skb, ndev);
 	else
 		ret = fec_enet_txq_submit_skb(txq, skb, ndev);
-	if (ret)
-		return ret;
 
-	if (running_inband()) {
+	if (ret == NETDEV_TX_OK && running_inband()) {
 		entries_free = fec_enet_get_free_txdesc_num(txq);
 		if (entries_free <= txq->tx_stop_threshold)
 			netif_tx_stop_queue(nq);
@@ -1078,7 +1076,7 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	netif_tx_unlock_oob(nq);
 
-	return NETDEV_TX_OK;
+	return ret;
 }
 
 /* Init RX & TX buffer descriptors
