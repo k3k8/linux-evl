@@ -5119,9 +5119,6 @@ static void process_inband_rx_backlog(struct softnet_data *sd)
 __weak void napi_schedule_oob(struct napi_struct *n)
 { }
 
-__weak void napi_complete_oob(struct napi_struct *n)
-{ }
-
 __weak void process_inband_tx_backlog(struct softnet_data *sd)
 { }
 
@@ -5141,9 +5138,6 @@ static inline bool netif_receive_oob_list(struct list_head *head)
 }
 
 static inline void napi_schedule_oob(struct napi_struct *n)
-{ }
-
-static inline void napi_complete_oob(struct napi_struct *n)
 { }
 
 static inline void process_inband_tx_backlog(struct softnet_data *sd)
@@ -6316,7 +6310,7 @@ bool napi_complete_done(struct napi_struct *n, int work_done)
 	if (netif_oob_diversion(n->dev)) {
 		if (net_running_oob())
 			return true;
-		napi_complete_oob(n);
+		napi_schedule_oob(n);
 	}
 
 	/*
