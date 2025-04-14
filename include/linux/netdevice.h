@@ -4421,7 +4421,6 @@ static inline void netif_disable_oob_port(struct net_device *dev)
 
 /* Out-of-band hooks implemented by the companion core. */
 void napi_schedule_oob(struct napi_struct *n);
-void napi_complete_oob(struct napi_struct *n);
 bool netif_deliver_oob(struct sk_buff *skb);
 void netif_tx_lock_oob(struct netdev_queue *txq);
 void netif_tx_unlock_oob(struct netdev_queue *txq);
