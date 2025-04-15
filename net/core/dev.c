@@ -6463,7 +6463,8 @@ bool napi_complete_done(struct napi_struct *n, int work_done)
 
 	if (netif_oob_diversion(n->dev)) {
 		if (net_running_oob())
-			return true;
+			return napi_schedule_unprep(n);
+
 		napi_schedule_oob(n);
 	}
 
