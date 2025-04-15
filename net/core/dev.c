@@ -6630,8 +6630,16 @@ restart:
 	if (!napi)
 		return;
 
+	/*
+	 * Dovetail: can't compete with an oob-enabled device
+	 * currently diverting traffic to a companion core.
+	 */
+	if (netif_oob_diversion(napi->dev) && netdev_is_oob_capable(napi->dev))
+		goto out;
+
 	if (!IS_ENABLED(CONFIG_PREEMPT_RT))
 		preempt_disable();
+
 	for (;;) {
 		int work = 0;
 
