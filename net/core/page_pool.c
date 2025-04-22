@@ -857,42 +857,39 @@ static bool __page_pool_page_can_be_recycled(netmem_ref netmem)
 		!page_is_pfmemalloc(netmem_to_page(netmem)));
 }
 
-/* If the page refcnt == 1, this will try to recycle the page.
- * If pool->dma_sync is set, we'll try to sync the DMA area for
- * the configured size min(dma_sync_size, pool->max_len).
- * If the page refcnt != 1, then the page will be returned to memory
- * subsystem.
+/* If the page refcnt == 1, this will try to recycle the page.  If
+ * pool->dma_sync is set, we'll try to sync the DMA area for the
+ * configured size min(dma_sync_size, pool->max_len).  If the page
+ * refcnt != 1, then the page will be returned to memory
+ * subsystem. However, pages from oob-accessed pools always live in
+ * the fast cache, never in the ring. They are released to the global
+ * page allocator only when the pool is destroyed.
  */
 static __always_inline netmem_ref
 __page_pool_put_page(struct page_pool *pool, netmem_ref netmem,
 		     unsigned int dma_sync_size, bool allow_direct)
 {
 #ifdef CONFIG_PAGE_POOL_OOB
-	/*
-	 * Pages from oob-accessed pools always live in the fast
-	 * cache, never in the ring. They are released to the global
-	 * page allocator only when the pool is destroyed.
-	 */
 	if (page_pool_is_oob(pool)) {
-		unsigned long flags;
-		bool ret;
-		/*
-		 * If a page from an oob-accessed pool is still
-		 * referenced when released or the fast cache would
-		 * unexpectedly overflow (meaning we attempt to double
-		 * release or free an invalid page), we bark at the
-		 * console then bluntly leak it. This situation should
-		 * never occur, or would denote a critical bug in the
-		 * calling code.
-		 */
-		if (WARN_ON(dovetail_debug() && !__page_pool_page_can_be_recycled(netmem)))
-			return 0;
-		if (pool->slow.flags & PP_FLAG_DMA_SYNC_DEV)
-			page_pool_dma_sync_for_device(pool, netmem, dma_sync_size);
-		raw_spin_lock_irqsave(&pool->alloc.oob_lock, flags);
-		ret = page_pool_recycle_in_cache(netmem, pool);
-		raw_spin_unlock_irqrestore(&pool->alloc.oob_lock, flags);
-		WARN_ON(dovetail_debug() && !ret);
+		if (likely(page_ref_count(netmem_to_page(netmem)) == 1)) {
+			unsigned long flags;
+			bool ret;
+			if (WARN_ON(dovetail_debug() && !__page_pool_page_can_be_recycled(netmem)))
+				return 0;
+			if (pool->slow.flags & PP_FLAG_DMA_SYNC_DEV)
+				page_pool_dma_sync_for_device(pool, netmem, dma_sync_size);
+			raw_spin_lock_irqsave(&pool->alloc.oob_lock, flags);
+			ret = page_pool_recycle_in_cache(netmem, pool);
+			raw_spin_unlock_irqrestore(&pool->alloc.oob_lock, flags);
+			/*
+			 * If the fast cache would unexpectedly
+			 * overflow (meaning the caller has attempted
+			 * to double release or free an invalid page),
+			 * we bark at the console then bluntly leak
+			 * it.
+			 */
+			WARN_ON(dovetail_debug() && !ret);
+		}
 		return 0;
 	}
 #endif	/* !CONFIG_PAGE_POOL_OOB */
