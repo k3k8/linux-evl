@@ -601,10 +601,10 @@ bool recycle_skb_oob(struct sk_buff *skb)
 {
 	/*
 	 * Hand the buffer release over the out-of-band core either if
-	 * the latter owns the skb data or we are currently running
-	 * oob.
+	 * the latter manages the data storage or we are currently
+	 * running oob.
 	 */
-	if (running_oob() || skb_has_oob_storage(skb)) {
+	if (running_oob() || skb_is_oob_managed(skb)) {
 		free_skb_oob(skb);
 		return true;
 	}
