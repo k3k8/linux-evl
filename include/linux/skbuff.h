@@ -520,8 +520,9 @@ enum {
 	 */
 	SKBFL_MANAGED_FRAG_REFS = BIT(4),
 
-	/* data lives into an oob-enabled storage. */
-	SKBFL_OOB_STORAGE = BIT(5),
+	/* data storage is managed by a companion core operating from
+	 * the oob stage. */
+	SKBFL_OOB_MANAGED = BIT(5),
 };
 
 #define SKBFL_ZEROCOPY_FRAG	(SKBFL_ZEROCOPY_ENABLE | SKBFL_SHARED_FRAG)
@@ -943,9 +944,6 @@ struct sk_buff {
 				head_frag:1,
 				pfmemalloc:1,
 				pp_recycle:1; /* page_pool recycle indicator */
-#ifdef CONFIG_NET_OOB
-	__u8			oob_head:1;
-#endif
 #ifdef CONFIG_SKB_EXTENSIONS
 	__u8			active_extensions;
 #endif
@@ -992,6 +990,9 @@ struct sk_buff {
 	__u8			ndisc_nodetype:2;
 #endif
 
+#ifdef CONFIG_NET_OOB
+	__u8			oob:1;
+#endif
 #if IS_ENABLED(CONFIG_IP_VS)
 	__u8			ipvs_property:1;
 #endif
@@ -5229,37 +5230,37 @@ struct sk_buff *get_oob_skb(void);
 void put_oob_skb(struct sk_buff *skb);
 
 /**
- * skb_is_oob - Whether the buffer was allocated from the oob
- * pool. Caution: this is distinct from the skb conveying oob storage,
- * see skb_has_oob_storage().
+ * skb_is_oob - Whether the buffer shell was allocated from the oob
+ * pool. Caution: this is distinct from a skb which storage is managed
+ * by a companion core, see skb_is_oob_managed().
  */
 static inline bool skb_is_oob(const struct sk_buff *skb)
 {
-	return skb->oob_head;
+	return skb->oob;
 }
 
 static inline void skb_mark_oob(struct sk_buff *skb)
 {
-	skb->oob_head = 1;
+	skb->oob = 1;
 }
 
 /**
- * skb_has_oob_storage - Whether the skb data lives in an oob-enabled
- * page pool.
+ * skb_is_oob_managed - Whether the skb data is managed by a companion
+ * core.
  */
-static inline bool skb_has_oob_storage(const struct sk_buff *skb)
+static inline bool skb_is_oob_managed(const struct sk_buff *skb)
 {
-	return skb_shinfo(skb)->flags & SKBFL_OOB_STORAGE;
+	return skb_shinfo(skb)->flags & SKBFL_OOB_MANAGED;
 }
 
-static inline void skb_mark_oob_storage(struct sk_buff *skb)
+static inline void skb_mark_oob_managed(struct sk_buff *skb)
 {
-	skb_shinfo(skb)->flags |= SKBFL_OOB_STORAGE;
+	skb_shinfo(skb)->flags |= SKBFL_OOB_MANAGED;
 }
 
-static inline dma_addr_t skb_oob_storage_addr(const struct sk_buff *skb)
+static inline dma_addr_t skb_oob_dma_addr(const struct sk_buff *skb)
 {
-	if (!skb->head || !skb_has_oob_storage(skb) || !skb->pp_recycle)
+	if (!skb->head || !skb_is_oob_managed(skb) || !skb->pp_recycle)
 		return DMA_MAPPING_ERROR;
 
 	return page_pool_get_dma_addr(virt_to_page(skb->head));
@@ -5281,7 +5282,7 @@ static inline void finalize_skb_inband(struct sk_buff *skb)
  */
 static inline void __skb_inband_clone(struct sk_buff *skb)
 {
-	skb->oob_head = 0;
+	skb->oob = 0;
 }
 
 /**
@@ -5318,12 +5319,12 @@ static inline bool __skb_oob_free_head(struct sk_buff *skb)
 	return false;
 }
 
-static inline bool skb_has_oob_storage(const struct sk_buff *skb)
+static inline bool skb_is_oob_managed(const struct sk_buff *skb)
 {
 	return false;
 }
 
-static inline dma_addr_t skb_oob_storage_addr(const struct sk_buff *skb)
+static inline dma_addr_t skb_oob_dma_addr(const struct sk_buff *skb)
 {
 	return DMA_MAPPING_ERROR;
 }
