@@ -561,7 +561,7 @@ static dma_addr_t get_dma_mapping(struct sk_buff *skb,
 {
 	dma_addr_t addr;
 
-	if (!fec_net_oob() || !skb_has_oob_storage(skb))
+	if (!fec_net_oob() || !skb_is_oob_managed(skb))
 		return dma_map_single(dev, ptr, size, dir);
 
 	/*
@@ -569,7 +569,7 @@ static dma_addr_t get_dma_mapping(struct sk_buff *skb,
 	 * it belongs to. We only need to to let the device get at the
 	 * pre-mapped DMA area for the specified I/O direction.
 	 */
-	addr = skb_oob_storage_addr(skb);
+	addr = skb_oob_dma_addr(skb);
 	dma_sync_single_for_device(dev, addr, size, dir);
 
 	return addr;
@@ -579,7 +579,7 @@ static void release_dma_mapping(struct sk_buff *skb,
 				struct device *dev, dma_addr_t addr, size_t size,
 				enum dma_data_direction dir)
 {
-	if (!fec_net_oob() || !skb || !skb_has_oob_storage(skb)) {
+	if (!fec_net_oob() || !skb || !skb_is_oob_managed(skb)) {
 		dma_unmap_single(dev, addr, size, dir);
 	} else {
 		/*
