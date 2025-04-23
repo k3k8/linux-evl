@@ -5293,7 +5293,7 @@ bool netif_receive_oob(struct sk_buff *skb)
 		if (net_running_oob()) {
 			raw_spin_lock_irqsave(&sd->inband_rx_lock, flags);
 			kick_softirq = list_empty(&sd->inband_rx_list);
-			list_add(&skb->list, &sd->inband_rx_list);
+			list_add_tail(&skb->list, &sd->inband_rx_list);
 			raw_spin_unlock_irqrestore(&sd->inband_rx_lock, flags);
 			if (kick_softirq)
 				irq_work_queue(&sd->inband_rx_work);
