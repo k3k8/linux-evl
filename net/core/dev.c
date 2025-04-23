@@ -5457,6 +5457,13 @@ static void process_inband_rx_backlog(struct softnet_data *sd)
 		_netif_receive_skb_list(&list);
 }
 
+static int napi_poll(struct napi_struct *n, struct list_head *repoll);
+
+int napi_poll_oob(struct napi_struct *n, struct list_head *repoll)
+{
+	return napi_poll(n, repoll);
+}
+
 __weak void napi_schedule_oob(struct napi_struct *n)
 { }
 
@@ -6630,7 +6637,12 @@ bool napi_complete_done(struct napi_struct *n, int work_done)
 	if (netif_oob_diversion(n->dev)) {
 		if (net_running_oob())
 			return napi_schedule_unprep(n);
-
+		/*
+		 * We get there only when the NAPI poll handler runs
+		 * from the inband stage, i.e. called from a non
+		 * oob-capable device which ingress traffic is
+		 * diverted to some oob netstack nevertheless.
+		 */
 		napi_schedule_oob(n);
 	}
 
@@ -7509,6 +7521,9 @@ static int __napi_poll(struct napi_struct *n, bool *repoll)
 		return work;
 	}
 
+	if (net_running_oob())
+		goto out;
+
 	/* The NAPI context has more processing work, but busy-polling
 	 * is preferred. Exit early.
 	 */
@@ -7526,6 +7541,7 @@ static int __napi_poll(struct napi_struct *n, bool *repoll)
 	gro_flush(&n->gro, HZ >= 1000);
 	gro_normal_list(&n->gro);
 
+out:
 	/* Some drivers may have called napi_schedule
 	 * prior to exhausting their budget.
 	 */
