@@ -4419,6 +4419,8 @@ static inline void netif_disable_oob_port(struct net_device *dev)
 	smp_mb__after_atomic();
 }
 
+int napi_poll_oob(struct napi_struct *n, struct list_head *repoll);
+
 /* Out-of-band hooks implemented by the companion core. */
 void napi_schedule_oob(struct napi_struct *n);
 bool netif_deliver_oob(struct sk_buff *skb);
