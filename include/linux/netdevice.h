@@ -3279,7 +3279,6 @@ struct softnet_data {
 #endif
 #ifdef CONFIG_NET_OOB
 	struct list_head	inband_rx_list; /* Inband skbs received oob */
-	hard_spinlock_t		inband_rx_lock;
 	struct irq_work		inband_rx_work;
 #endif
 	struct Qdisc		*output_queue;
