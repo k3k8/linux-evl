@@ -5291,10 +5291,10 @@ bool netif_receive_oob(struct sk_buff *skb)
 		if (netif_deliver_oob(skb))
 			return true;
 		if (net_running_oob()) {
-			raw_spin_lock_irqsave(&sd->inband_rx_lock, flags);
+			flags = hard_local_irq_save();
 			kick_softirq = list_empty(&sd->inband_rx_list);
 			list_add_tail(&skb->list, &sd->inband_rx_list);
-			raw_spin_unlock_irqrestore(&sd->inband_rx_lock, flags);
+			hard_local_irq_restore(flags);
 			if (kick_softirq)
 				irq_work_queue(&sd->inband_rx_work);
 			return true;
@@ -5319,9 +5319,9 @@ static void process_inband_rx_backlog(struct softnet_data *sd)
 	unsigned long flags;
 	LIST_HEAD(list);
 
-	raw_spin_lock_irqsave(&sd->inband_rx_lock, flags);
+	flags = hard_local_irq_save();
 	list_splice_init(&sd->inband_rx_list, &list);
-	raw_spin_unlock_irqrestore(&sd->inband_rx_lock, flags);
+	hard_local_irq_restore(flags);
 	if (!list_empty(&list))
 		_netif_receive_skb_list(&list);
 }
@@ -12373,7 +12373,6 @@ static int __init net_dev_init(void)
 #endif
 #ifdef CONFIG_NET_OOB
 		INIT_LIST_HEAD(&sd->inband_rx_list);
-		raw_spin_lock_init(&sd->inband_rx_lock);
 		init_irq_work(&sd->inband_rx_work, kick_rx_inband);
 #endif
 		INIT_CSD(&sd->defer_csd, trigger_rx_softirq, sd);
