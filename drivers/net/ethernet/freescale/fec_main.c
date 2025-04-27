@@ -1052,17 +1052,6 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	txq = fep->tx_queue[queue];
 	nq = netdev_get_tx_queue(ndev, queue);
 
-	/*
-	 * Lock out any sender running from the alternate execution
-	 * stage from any CPU (i.e. oob vs in-band). Clearly, in-band
-	 * tasks should refrain from sending output through an
-	 * oob-enabled device when aiming at the lowest possible
-	 * latency for the oob players, but we still allow shared use
-	 * for flexibility though, which comes in handy when a single
-	 * NIC only is available to convey both kinds of traffic.
-	 */
-	netif_tx_lock_oob(nq);
-
 	if (skb_is_gso(skb))
 		ret = fec_enet_txq_submit_tso(txq, skb, ndev);
 	else
@@ -1073,8 +1062,6 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		if (entries_free <= txq->tx_stop_threshold)
 			netif_tx_stop_queue(nq);
 	}
-
-	netif_tx_unlock_oob(nq);
 
 	return ret;
 }
