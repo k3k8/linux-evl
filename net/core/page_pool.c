@@ -1225,6 +1225,9 @@ void page_pool_update_nid(struct page_pool *pool, int new_nid)
 {
 	netmem_ref netmem;
 
+	if (WARN_ON_ONCE(page_pool_is_oob(pool)))
+		return;
+
 	trace_page_pool_update_nid(pool, new_nid);
 	pool->p.nid = new_nid;
 
