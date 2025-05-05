@@ -693,6 +693,8 @@ ssize_t evl_net_skb_to_uio(const struct iovec *iov, size_t iovlen,
 		return ret;
 	}
 
+	*short_write = false;
+
 	skb_walk_frags(skb, fskb) {
 		if (skip)
 			skb_pull_inline(fskb, skip);
@@ -705,8 +707,6 @@ ssize_t evl_net_skb_to_uio(const struct iovec *iov, size_t iovlen,
 			break;
 		}
 	}
-
-	*short_write = false;
 
 	return ret;
 }
