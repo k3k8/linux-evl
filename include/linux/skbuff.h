@@ -39,6 +39,7 @@
 #include <linux/llist.h>
 #include <net/flow.h>
 #include <net/page_pool.h>
+#include <dovetail/skbuff.h>
 #if IS_ENABLED(CONFIG_NF_CONNTRACK)
 #include <linux/netfilter/nf_conntrack_common.h>
 #endif
@@ -529,6 +530,9 @@ enum {
 	/* data storage is managed by a companion core operating from
 	 * the oob stage. */
 	SKBFL_OOB_MANAGED = BIT(5),
+
+	/* a companion core is timestamping this buffer. */
+	SKBFL_OOB_TIMESTAMPED = BIT(6),
 };
 
 #define SKBFL_ZEROCOPY_FRAG	(SKBFL_ZEROCOPY_ENABLE | SKBFL_SHARED_FRAG)
@@ -592,6 +596,7 @@ struct skb_shared_info {
 	unsigned short	gso_segs;
 	struct sk_buff	*frag_list;
 	struct skb_shared_hwtstamps hwtstamps;
+	struct		skb_shared_oob oob_shinfo;
 	unsigned int	gso_type;
 	u32		tskey;
 
@@ -5174,6 +5179,21 @@ static inline void skb_mark_oob(struct sk_buff *skb)
 }
 
 /**
+ * skb_is_oob_timestamped - Whether the buffer is timestamped by a
+ * companion core, in which case the timestamps should be stored in
+ * skb_shinfo(skb)->oob_shinfo by a companion core.
+ */
+static inline bool skb_is_oob_timestamped(const struct sk_buff *skb)
+{
+	return skb_shinfo(skb)->flags & SKBFL_OOB_TIMESTAMPED;
+}
+
+static inline void skb_mark_oob_timestamped(struct sk_buff *skb)
+{
+	skb_shinfo(skb)->flags |= SKBFL_OOB_TIMESTAMPED;
+}
+
+/**
  * skb_is_oob_managed - Whether the skb data is managed by a companion
  * core.
  */
@@ -5185,6 +5205,11 @@ static inline bool skb_is_oob_managed(const struct sk_buff *skb)
 static inline void skb_mark_oob_managed(struct sk_buff *skb)
 {
 	skb_shinfo(skb)->flags |= SKBFL_OOB_MANAGED;
+}
+
+static inline struct skb_shared_oob *skb_shinfo_oob(struct sk_buff *skb)
+{
+	return &skb_shinfo(skb)->oob_shinfo;
 }
 
 static inline dma_addr_t skb_oob_dma_addr(const struct sk_buff *skb)
@@ -5248,9 +5273,19 @@ static inline bool __skb_oob_free_head(struct sk_buff *skb)
 	return false;
 }
 
+static inline bool skb_is_oob_timestamped(const struct sk_buff *skb)
+{
+	return false;
+}
+
 static inline bool skb_is_oob_managed(const struct sk_buff *skb)
 {
 	return false;
+}
+
+static inline struct skb_shared_oob *skb_shinfo_oob(struct sk_buff *skb)
+{
+	return NULL;
 }
 
 static inline dma_addr_t skb_oob_dma_addr(const struct sk_buff *skb)
