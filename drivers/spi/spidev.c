@@ -24,7 +24,7 @@
 #include <linux/spi/spidev.h>
 
 #include <linux/uaccess.h>
-#include <uapi/evl/devices/spidev.h>
+#include <uapi/evl/devices/spidev-abi.h>
 #include <evl/device.h>
 
 /*
