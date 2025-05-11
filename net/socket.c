@@ -183,6 +183,20 @@ long __weak sock_inband_ioctl_redirect(struct sock *sk,
 	return -ENOTTY;
 }
 
+int __weak sock_inband_setopt_redirect(struct sock *sk,
+				int level, int optname,
+				sockptr_t optval, unsigned int optlen)
+{
+	return -EINVAL;
+}
+
+int __weak sock_inband_getopt_redirect(struct sock *sk,
+				int level, int optname,
+				sockptr_t optval, int *optlen)
+{
+	return -EINVAL;
+}
+
 long __weak sock_oob_ioctl(struct file *file,
 			unsigned int cmd, unsigned long arg)
 {
