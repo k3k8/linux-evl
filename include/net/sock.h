@@ -1855,6 +1855,14 @@ ssize_t sock_oob_read(struct file *filp,
 __poll_t sock_oob_poll(struct file *filp,
 		struct oob_poll_wait *wait);
 
+int sock_inband_setopt_redirect(struct sock *sk,
+				int level, int optname,
+				sockptr_t optval, unsigned int optlen);
+
+int sock_inband_getopt_redirect(struct sock *sk,
+				int level, int optname,
+				sockptr_t optval, int *optlen);
+
 static inline void sock_oob_destruct(struct sock *sk)
 {
 	void sock_oob_destroy(struct sock *sk);
@@ -1862,7 +1870,7 @@ static inline void sock_oob_destruct(struct sock *sk)
 		sock_oob_destroy(sk);
 }
 
-#else
+#else  /* !CONFIG_NET_OOB */
 
 static inline bool sock_oob_capable(struct socket *sock)
 {
@@ -1880,9 +1888,23 @@ static inline int sock_oob_shutdown(struct sock *sk, int how)
 	return 0;
 }
 
+static inline int sock_inband_setopt_redirect(struct sock *sk,
+					int level, int optname,
+					sockptr_t optval, int optlen)
+{
+	return 0;
+}
+
+static inline int sock_inband_getopt_redirect(struct sock *sk,
+					int level, int optname,
+					sockptr_t optval, int *optlen)
+{
+	return 0;
+}
+
 static inline void sock_oob_destruct(struct sock *sk) { }
 
-#endif
+#endif	/* !CONFIG_NET_OOB */
 
 int sk_setsockopt(struct sock *sk, int level, int optname,
 		  sockptr_t optval, unsigned int optlen);
