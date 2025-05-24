@@ -105,9 +105,13 @@ extern void apic_ack_edge(struct irq_data *data);
 #ifdef CONFIG_X86_LOCAL_APIC
 extern void lock_vector_lock(void);
 extern void unlock_vector_lock(void);
+extern void __lock_vector_lock(void);
+extern void __unlock_vector_lock(void);
 #else
 static inline void lock_vector_lock(void) {}
 static inline void unlock_vector_lock(void) {}
+static inline void __lock_vector_lock(void) {}
+static inline void __unlock_vector_lock(void) {}
 #endif
 
 /* Statistics */
