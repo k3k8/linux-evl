@@ -300,10 +300,10 @@ static void notrace __noendbr start_secondary(void *unused)
 	 * to prevent a concurrent irq setup/teardown from seeing a
 	 * half valid vector space.
 	 */
-	lock_vector_lock();
+	__lock_vector_lock();
 	set_cpu_online(smp_processor_id(), true);
 	lapic_online();
-	unlock_vector_lock();
+	__unlock_vector_lock();
 	x86_platform.nmi_init();
 
 	/* enable local interrupts */
