@@ -5369,8 +5369,10 @@ static int netif_rx_internal(struct sk_buff *skb)
 {
 	int ret;
 
-	if (netif_receive_oob(skb))
+	if (netif_receive_oob(skb)) {
+		netif_schedule_oob(skb->dev);
 		return NET_RX_SUCCESS;
+	}
 
 	net_timestamp_check(READ_ONCE(net_hotdata.tstamp_prequeue), skb);
 
