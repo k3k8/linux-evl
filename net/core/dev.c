@@ -5369,6 +5369,9 @@ static int netif_rx_internal(struct sk_buff *skb)
 {
 	int ret;
 
+	if (netif_receive_oob(skb))
+		return NET_RX_SUCCESS;
+
 	net_timestamp_check(READ_ONCE(net_hotdata.tstamp_prequeue), skb);
 
 	trace_netif_rx(skb);
@@ -5409,7 +5412,7 @@ int __netif_rx(struct sk_buff *skb)
 {
 	int ret;
 
-	lockdep_assert_once(hardirq_count() | softirq_count());
+	lockdep_assert_once(running_oob() | hardirq_count() | softirq_count());
 
 	trace_netif_rx_entry(skb);
 	ret = netif_rx_internal(skb);
