@@ -4372,6 +4372,7 @@ int napi_poll_oob(struct napi_struct *n, struct list_head *repoll);
 /* Out-of-band hooks implemented by the companion core. */
 void napi_schedule_oob(struct napi_struct *n);
 bool netif_deliver_oob(struct sk_buff *skb);
+void netif_schedule_oob(struct net_device *dev);
 void netif_tx_lock_oob(struct netdev_queue *txq);
 void netif_tx_unlock_oob(struct netdev_queue *txq);
 void netif_tx_wake_oob(struct netdev_queue *txq); /* rcu_read locked */
@@ -4386,6 +4387,10 @@ static inline void netdev_set_oob_capable(struct net_device *dev)
 static inline bool netif_receive_oob(struct sk_buff *skb)
 {
 	return false;
+}
+
+static inline void netif_schedule_oob(struct net_device *dev)
+{
 }
 
 static inline bool netif_oob_diversion(const struct net_device *dev)
