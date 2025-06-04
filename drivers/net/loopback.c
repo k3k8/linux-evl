@@ -218,6 +218,9 @@ static __net_init int loopback_net_init(struct net *net)
 	if (err)
 		goto out_free_netdev;
 
+	if (IS_ENABLED(CONFIG_NET_OOB))
+		netdev_set_oob_capable(dev);
+
 	BUG_ON(dev->ifindex != LOOPBACK_IFINDEX);
 	net->loopback_dev = dev;
 	return 0;
