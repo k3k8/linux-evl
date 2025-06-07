@@ -3535,7 +3535,13 @@ fec_enet_alloc_rxq_buffers(struct net_device *ndev, unsigned int queue)
 	rxq = fep->rx_queue[queue];
 	bdp = rxq->bd.base;
 
-	err = fec_enet_create_page_pool(fep, rxq, rxq->bd.ring_size);
+	/*
+	 * Create a page pool. Allocating four times the ring size is
+	 * a shameless heuristic aimed at coping with high traffic
+	 * pressure and/or (too) slow handling on the oob side
+	 * (i.e. excessive buffering).
+	 */
+	err = fec_enet_create_page_pool(fep, rxq, rxq->bd.ring_size * 4);
 	if (err < 0) {
 		netdev_err(ndev, "%s failed queue %d (%d)\n", __func__, queue, err);
 		return err;
