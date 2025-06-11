@@ -575,12 +575,36 @@ static dma_addr_t get_dma_mapping(struct sk_buff *skb,
 	return addr;
 }
 
-static void release_dma_mapping(struct sk_buff *skb,
-				struct device *dev, dma_addr_t addr, size_t size,
-				enum dma_data_direction dir)
+#ifdef CONFIG_FEC_OOB
+
+static void release_inband_work(struct irq_work *irq_work)
+{
+	struct fec_enet_priv_tx_q *txq = container_of(irq_work, struct fec_enet_priv_tx_q, inband_irq_work);
+
+	while (txq->next_to_flush != READ_ONCE(txq->next_to_defer)) {
+		int ntf = txq->next_to_flush;
+		struct fec_inband_work *fl = txq->inband_flush + ntf;
+		dma_unmap_single(fl->dev, fl->addr, fl->size, DMA_TO_DEVICE);
+		txq->next_to_flush = (ntf + 1) % TX_RING_SIZE;
+	}
+}
+
+static void release_tx_mapping(struct sk_buff *skb,
+			struct fec_enet_priv_tx_q *txq,
+			struct device *dev, dma_addr_t addr, size_t size)
 {
 	if (!fec_net_oob() || !skb || !skb_is_oob_managed(skb)) {
-		dma_unmap_single(dev, addr, size, dir);
+		if (fec_running_oob()) {
+			int ntd = txq->next_to_defer;
+			struct fec_inband_work *fl = txq->inband_flush + ntd;
+			fl->addr = addr;
+			fl->size = size;
+			fl->dev = dev;
+			WRITE_ONCE(txq->next_to_defer, (ntd + 1) % TX_RING_SIZE);
+			irq_work_queue(&txq->inband_irq_work);
+		} else {
+			dma_unmap_single(dev, addr, size, DMA_TO_DEVICE);
+		}
 	} else {
 		/*
 		 * An oob-managed storage should not be unmapped, this
@@ -588,9 +612,20 @@ static void release_dma_mapping(struct sk_buff *skb,
 		 * it belongs to. We only need to synchronize the CPU
 		 * caches for the specified I/O direction.
 		 */
-		dma_sync_single_for_cpu(dev, addr, size, dir);
+		dma_sync_single_for_cpu(dev, addr, size, DMA_TO_DEVICE);
 	}
 }
+
+#else	/* !CONFIG_FEC_OOB */
+
+static void release_tx_mapping(struct sk_buff *skb,
+			struct fec_enet_priv_tx_q *txq,
+			struct device *dev, dma_addr_t addr, size_t size)
+{
+	dma_sync_single_for_cpu(dev, addr, size, DMA_TO_DEVICE);
+}
+
+#endif	/* !CONFIG_FEC_OOB */
 
 static struct bufdesc *
 fec_enet_txq_submit_frag_skb(struct fec_enet_priv_tx_q *txq,
@@ -675,8 +710,8 @@ dma_mapping_error:
 	bdp = txq->bd.cur;
 	for (i = 0; i < frag; i++) {
 		bdp = fec_enet_get_nextdesc(bdp, &txq->bd);
-		release_dma_mapping(NULL, &fep->pdev->dev, fec32_to_cpu(bdp->cbd_bufaddr),
-				fec16_to_cpu(bdp->cbd_datlen), DMA_TO_DEVICE);
+		release_tx_mapping(NULL, txq, &fep->pdev->dev, fec32_to_cpu(bdp->cbd_bufaddr),
+				fec16_to_cpu(bdp->cbd_datlen));
 	}
 	return ERR_PTR(-ENOMEM);
 }
@@ -741,8 +776,7 @@ static int fec_enet_txq_submit_skb(struct fec_enet_priv_tx_q *txq,
 	if (nr_frags) {
 		last_bdp = fec_enet_txq_submit_frag_skb(txq, skb, ndev);
 		if (IS_ERR(last_bdp)) {
-			release_dma_mapping(skb, &fep->pdev->dev, addr,
-					buflen, DMA_TO_DEVICE);
+			release_tx_mapping(skb, txq, &fep->pdev->dev, addr, buflen);
 			dev_kfree_skb_any(skb);
 			return NETDEV_TX_OK;
 		}
@@ -1111,20 +1145,20 @@ static void fec_enet_bd_init(struct net_device *dev)
 			if (txq->tx_buf[i].type == FEC_TXBUF_T_SKB) {
 				if (bdp->cbd_bufaddr &&
 				    !IS_TSO_HEADER(txq, fec32_to_cpu(bdp->cbd_bufaddr)))
-					release_dma_mapping(txq->tx_buf[i].buf_p,
-							 &fep->pdev->dev,
-							 fec32_to_cpu(bdp->cbd_bufaddr),
-							 fec16_to_cpu(bdp->cbd_datlen),
-							 DMA_TO_DEVICE);
+					release_tx_mapping(txq->tx_buf[i].buf_p,
+							txq,
+							&fep->pdev->dev,
+							fec32_to_cpu(bdp->cbd_bufaddr),
+							fec16_to_cpu(bdp->cbd_datlen));
 				if (txq->tx_buf[i].buf_p)
 					dev_kfree_skb_any(txq->tx_buf[i].buf_p);
 			} else if (txq->tx_buf[i].type == FEC_TXBUF_T_XDP_NDO) {
 				if (bdp->cbd_bufaddr)
-					release_dma_mapping(txq->tx_buf[i].buf_p,
-							 &fep->pdev->dev,
-							 fec32_to_cpu(bdp->cbd_bufaddr),
-							 fec16_to_cpu(bdp->cbd_datlen),
-							 DMA_TO_DEVICE);
+					release_tx_mapping(txq->tx_buf[i].buf_p,
+							txq,
+							&fep->pdev->dev,
+							fec32_to_cpu(bdp->cbd_bufaddr),
+							fec16_to_cpu(bdp->cbd_datlen));
 
 				if (txq->tx_buf[i].buf_p)
 					xdp_return_frame(txq->tx_buf[i].buf_p);
@@ -1586,11 +1620,11 @@ fec_enet_tx_queue(struct net_device *ndev, u16 queue_id, int budget)
 		if (txq->tx_buf[index].type == FEC_TXBUF_T_SKB) {
 			if (bdp->cbd_bufaddr &&
 			    !IS_TSO_HEADER(txq, fec32_to_cpu(bdp->cbd_bufaddr)))
-				release_dma_mapping(skb,
-						 &fep->pdev->dev,
-						 fec32_to_cpu(bdp->cbd_bufaddr),
-						 fec16_to_cpu(bdp->cbd_datlen),
-						 DMA_TO_DEVICE);
+				release_tx_mapping(skb,
+						txq,
+						&fep->pdev->dev,
+						fec32_to_cpu(bdp->cbd_bufaddr),
+						fec16_to_cpu(bdp->cbd_datlen));
 			bdp->cbd_bufaddr = cpu_to_fec32(0);
 			if (!skb)
 				goto tx_buf_done;
@@ -1606,11 +1640,11 @@ fec_enet_tx_queue(struct net_device *ndev, u16 queue_id, int budget)
 			if (txq->tx_buf[index].type == FEC_TXBUF_T_XDP_NDO) {
 				xdpf = txq->tx_buf[index].buf_p;
 				if (bdp->cbd_bufaddr)
-					release_dma_mapping(skb,
-							 &fep->pdev->dev,
-							 fec32_to_cpu(bdp->cbd_bufaddr),
-							 fec16_to_cpu(bdp->cbd_datlen),
-							 DMA_TO_DEVICE);
+					release_tx_mapping(skb,
+							txq,
+							&fep->pdev->dev,
+							fec32_to_cpu(bdp->cbd_bufaddr),
+							fec16_to_cpu(bdp->cbd_datlen));
 			} else {
 				page = txq->tx_buf[index].buf_p;
 			}
@@ -3601,6 +3635,12 @@ fec_enet_alloc_txq_buffers(struct net_device *ndev, unsigned int queue)
 		}
 
 		bdp = fec_enet_get_nextdesc(bdp, &txq->bd);
+
+#ifdef CONFIG_FEC_OOB
+		init_irq_work(&txq->inband_irq_work, release_inband_work);
+		txq->next_to_defer = 0;
+		txq->next_to_flush = 0;
+#endif
 	}
 
 	/* Set the last buffer to wrap. */
