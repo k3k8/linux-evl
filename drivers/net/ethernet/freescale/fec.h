@@ -556,10 +556,26 @@ struct fec_tx_buffer {
 	enum fec_txbuf_type type;
 };
 
+#ifdef CONFIG_FEC_OOB
+struct fec_enet_priv_tx_q;
+
+struct fec_inband_work {
+	dma_addr_t addr;
+	struct device *dev;
+	unsigned int size;
+};
+#endif
+
 struct fec_enet_priv_tx_q {
 	struct bufdesc_prop bd;
 	unsigned char *tx_bounce[TX_RING_SIZE];
 	struct fec_tx_buffer tx_buf[TX_RING_SIZE];
+#ifdef CONFIG_FEC_OOB
+	struct fec_inband_work inband_flush[TX_RING_SIZE];
+	struct irq_work inband_irq_work;
+	int next_to_defer;
+	int next_to_flush;
+#endif
 
 	unsigned short tx_stop_threshold;
 	unsigned short tx_wake_threshold;
