@@ -460,11 +460,12 @@ static int page_pool_init_cache(struct page_pool *pool)
 		for (i = 0; i < nr_pages; i++) {
 			page = pool->alloc.cache[i];
 			if ((pp_flags & PP_FLAG_DMA_MAP) &&
-				unlikely(!page_pool_dma_map(pool, page)))
+			    unlikely(!page_pool_dma_map(pool, page))) {
+				nr_pages = i;
 				goto fail;
+			}
 
 			page_pool_set_pp_info(pool, page);
-			pool->alloc.cache[i] = page;
 			pool->pages_state_hold_cnt++;
 			trace_page_pool_state_hold(pool, page,
 						pool->pages_state_hold_cnt);
