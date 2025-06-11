@@ -1182,6 +1182,7 @@ bool napi_pp_put_page(netmem_ref netmem)
 
 	return true;
 }
+EXPORT_SYMBOL(napi_pp_put_page);
 #endif
 
 static bool skb_pp_recycle(struct sk_buff *skb, void *data)
