@@ -1426,7 +1426,7 @@ static int irq_setup_forced_threading(struct irqaction *new)
 {
 	if (!force_irqthreads())
 		return 0;
-	if (new->flags & (IRQF_NO_THREAD | IRQF_PERCPU | IRQF_ONESHOT))
+	if (new->flags & (IRQF_NO_THREAD | IRQF_PERCPU | IRQF_ONESHOT | IRQF_OOB))
 		return 0;
 
 	/*
