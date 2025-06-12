@@ -879,10 +879,10 @@ static void handle_unexpected_irq(struct irq_desc *desc, irqreturn_t ret)
 		     !raw_spin_is_locked(&desc->lock));
 
 	if (ret != IRQ_NONE) {
-		printk(KERN_ERR "out-of-band irq event %d: bogus return value %x\n",
+		printk(KERN_ERR "out-of-band IRQ%d: bogus return value %#x\n",
 		       irq, ret);
 		for_each_action_of_desc(desc, action)
-			printk(KERN_ERR "[<%p>] %pf",
+			printk(KERN_ERR "[<%px>] %pS",
 			       action->handler, action->handler);
 		printk(KERN_CONT "\n");
 		return;
