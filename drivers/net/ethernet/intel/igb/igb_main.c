@@ -816,7 +816,8 @@ static void igb_create_oob_pool(struct igb_ring *ring)
 static inline bool igb_is_oob_page(struct igb_ring *rx_ring,
 				struct page *page)
 {
-	return napi_pp_get_pool(page_to_netmem(page)) == rx_ring->rx_oob_pool;
+	return rx_ring->rx_oob_pool &&
+		napi_pp_get_pool(page_to_netmem(page)) == rx_ring->rx_oob_pool;
 }
 
 static void igb_rx_inband_work(struct irq_work *irq_work)
