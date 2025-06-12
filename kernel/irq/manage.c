@@ -943,7 +943,8 @@ EXPORT_SYMBOL(irq_set_irq_wake);
  *
  *	Enable/disable out-of-band handling for an IRQ. At least one
  *	action must have been previously registered for such
- *	interrupt.
+ *	interrupt. Enabling out-of-band handling is disallowed for
+ *	IRQs with threaded action(s).
  *
  *      The previously registered action(s) need(s) not bearing the
  *      IRQF_OOB flag for the IRQ to be switched to out-of-band
@@ -955,6 +956,7 @@ EXPORT_SYMBOL(irq_set_irq_wake);
  */
 int irq_switch_oob(unsigned int irq, bool on)
 {
+	struct irqaction *action;
 	struct irq_desc *desc;
 	unsigned long flags;
 	int ret = 0;
@@ -963,13 +965,22 @@ int irq_switch_oob(unsigned int irq, bool on)
 	if (!desc)
 		return -EINVAL;
 
-	if (!desc->action)
+	if (!desc->action) {
 		ret = -EINVAL;
-	else if (on)
-		irq_settings_set_oob(desc);
-	else
-		irq_settings_clr_oob(desc);
-
+	} else {
+		if (on) {
+			for_each_action_of_desc(desc, action) {
+				if (action->thread_fn) {
+					ret = -EBUSY;
+					goto out;
+				}
+			}
+			irq_settings_set_oob(desc);
+		} else {
+			irq_settings_clr_oob(desc);
+		}
+	}
+out:
 	irq_put_desc_unlock(desc, flags);
 
 	return ret;
