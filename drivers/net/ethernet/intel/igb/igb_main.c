@@ -739,6 +739,13 @@ static void __igb_flush_page(struct igb_ring *rx_ring, dma_addr_t dma,
 }
 
 #ifdef CONFIG_IGB_OOB
+/*
+ * We won't cope with threaded irqs if oob I/O might be enabled for a
+ * device. Most of our interrupt-triggered work already happens out of
+ * IRQ context anyway (NAPI softirq, workqueues), so in practice, the
+ * cost is marginal, and at any rate, won't impact the oob mode.
+ */
+#define IGB_IRQ_FLAGS  IRQF_NO_THREAD
 
 static int igb_enable_oob(struct net_device *netdev)
 {
@@ -910,6 +917,8 @@ static inline void igb_clear_icr(struct igb_adapter *adapter)
 }
 
 #else  /* !CONFIG_IGB_OOB */
+
+#define IGB_IRQ_FLAGS  0
 
 static inline void igb_create_oob_pool(struct igb_ring *ring)
 {
@@ -1135,7 +1144,7 @@ static int igb_request_msix(struct igb_adapter *adapter)
 	int i, err = 0, vector = 0, free_vector = 0;
 
 	err = request_irq(adapter->msix_entries[vector].vector,
-			  igb_msix_other, 0, netdev->name, adapter);
+			  igb_msix_other, IGB_IRQ_FLAGS, netdev->name, adapter);
 	if (err)
 		goto err_out;
 
@@ -1165,7 +1174,7 @@ static int igb_request_msix(struct igb_adapter *adapter)
 			sprintf(q_vector->name, "%s-unused", netdev->name);
 
 		err = request_irq(adapter->msix_entries[vector].vector,
-				  igb_msix_ring, 0, q_vector->name,
+				  igb_msix_ring, IGB_IRQ_FLAGS, q_vector->name,
 				  q_vector);
 		if (err)
 			goto err_free;
@@ -1635,7 +1644,7 @@ static int igb_request_irq(struct igb_adapter *adapter)
 	igb_assign_vector(adapter->q_vector[0], 0);
 
 	if (adapter->flags & IGB_FLAG_HAS_MSI) {
-		err = request_irq(pdev->irq, igb_intr_msi, 0,
+		err = request_irq(pdev->irq, igb_intr_msi, IGB_IRQ_FLAGS,
 				  netdev->name, adapter);
 		if (!err)
 			goto request_done;
@@ -1645,7 +1654,7 @@ static int igb_request_irq(struct igb_adapter *adapter)
 		adapter->flags &= ~IGB_FLAG_HAS_MSI;
 	}
 
-	err = request_irq(pdev->irq, igb_intr, IRQF_SHARED,
+	err = request_irq(pdev->irq, igb_intr, IRQF_SHARED | IGB_IRQ_FLAGS,
 			  netdev->name, adapter);
 
 	if (err)
