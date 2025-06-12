@@ -747,6 +747,10 @@ static int igb_enable_oob(struct net_device *netdev)
 	struct igb_adapter *adapter = netdev_priv(netdev);
 	int ret = 0, n;
 
+	/* Cannot have XDP and oob diversion enabled at the same time. */
+	if (igb_xdp_is_enabled(adapter))
+		return -EBUSY;
+
 	/* Catch late init errors for oob mode, still allowing
 	 * operations in regular mode though. */
 	for (n = 0; n < adapter->num_rx_queues; n++)
@@ -2214,12 +2218,13 @@ static void igb_configure(struct igb_adapter *adapter)
 	 */
 	for (i = 0; i < adapter->num_rx_queues; i++) {
 		struct igb_ring *ring = adapter->rx_ring[i];
-		if (ring->xsk_pool)
+		if (ring->xsk_pool) {
 			igb_alloc_rx_buffers_zc(ring, ring->xsk_pool,
 						igb_desc_unused(ring));
-		else
+		} else  {
 			igb_alloc_rx_buffers(ring, igb_desc_unused(ring));
-		igb_create_oob_pool(ring);
+			igb_create_oob_pool(ring);
+		}
 	}
 }
 
@@ -3141,6 +3146,10 @@ static int igb_xdp_setup(struct net_device *dev, struct netdev_bpf *bpf)
 static int igb_xdp(struct net_device *dev, struct netdev_bpf *xdp)
 {
 	struct igb_adapter *adapter = netdev_priv(dev);
+
+	/* Cannot have XDP and oob diversion enabled at the same time. */
+	if (netif_oob_diversion(dev))
+		return -EBUSY;
 
 	switch (xdp->command) {
 	case XDP_SETUP_PROG:
