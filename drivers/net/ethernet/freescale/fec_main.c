@@ -312,6 +312,14 @@ static int mii_cnt;
 
 #ifdef CONFIG_FEC_OOB
 
+/*
+ * We won't cope with threaded irqs if oob I/O might be enabled for a
+ * device. Most of our interrupt-triggered work already happens out of
+ * IRQ context anyway (NAPI softirq, workqueues), so in practice, the
+ * cost is marginal, and at any rate, won't impact the oob mode.
+ */
+#define FEC_IRQ_FLAGS  IRQF_NO_THREAD
+
 static int fec_enet_get_irq_cnt(struct platform_device *pdev);
 
 static int fec_enable_oob(struct net_device *ndev)
@@ -351,6 +359,10 @@ static void fec_disable_oob(struct net_device *ndev)
 	netif_tx_unlock_bh(ndev);
 	napi_enable(&fep->napi);
 }
+
+#else  /* !CONFIG_FEC_OOB */
+
+#define FEC_IRQ_FLAGS  0
 
 #endif	/* !CONFIG_FEC_OOB */
 
@@ -4687,7 +4699,7 @@ fec_probe(struct platform_device *pdev)
 			goto failed_irq;
 		}
 		ret = devm_request_irq(&pdev->dev, irq, fec_enet_interrupt,
-				       0, pdev->name, ndev);
+				       FEC_IRQ_FLAGS, pdev->name, ndev);
 		if (ret)
 			goto failed_irq;
 
