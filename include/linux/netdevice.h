@@ -4374,14 +4374,21 @@ static inline bool netif_oob_diversion(const struct net_device *dev)
 	return test_bit(__LINK_STATE_OOB, &dev->state);
 }
 
-static inline void netif_enable_oob_diversion(struct net_device *dev)
+static inline int netif_enable_oob_diversion(struct net_device *dev)
 {
 	const struct net_device_ops *ops = dev->netdev_ops;
+	int ret;
 
-	if (ops->ndo_enable_oob)
-		ops->ndo_enable_oob(dev);
+	if (ops->ndo_enable_oob) {
+		ret = ops->ndo_enable_oob(dev);
+		if (ret)
+			return ret;
+	}
 
+	smp_mb__before_atomic();
 	set_bit(__LINK_STATE_OOB, &dev->state);
+
+	return 0;
 }
 
 static inline void netif_disable_oob_diversion(struct net_device *dev)
