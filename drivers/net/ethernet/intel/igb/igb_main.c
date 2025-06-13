@@ -821,11 +821,40 @@ static void igb_create_oob_pool(struct igb_ring *ring)
 	ring->rx_oob_pool = rx_oob_pool;
 }
 
-static inline bool igb_is_oob_page(struct igb_ring *rx_ring,
+static void igb_destroy_oob_pool(struct igb_ring *rx_ring)
+{
+	if (rx_ring->rx_oob_pool) {
+		page_pool_destroy(rx_ring->rx_oob_pool);
+		rx_ring->rx_oob_pool = NULL;
+	}
+}
+
+static struct page *igb_alloc_rx_page(struct igb_ring *rx_ring)
+{
+	if (likely(igb_running_oob()))
+		return page_pool_dev_alloc_pages(rx_ring->rx_oob_pool);
+
+	return dev_alloc_pages(igb_rx_pg_order(rx_ring));
+}
+
+static bool igb_is_oob_page(struct igb_ring *rx_ring,
 				struct page *page)
 {
 	return rx_ring->rx_oob_pool &&
 		napi_pp_get_pool(page_to_netmem(page)) == rx_ring->rx_oob_pool;
+}
+
+static inline void igb_mark_oob_page(struct sk_buff *skb,
+				struct igb_ring *rx_ring,
+				struct page *page)
+{
+	/*
+	 * If the buffer attached to the skb comes from an oob (RX)
+	 * pool, we need to mark it accordingly for proper recycling
+	 * via the regular page_pool hook.
+	 */
+	if (igb_is_oob_page(rx_ring, page))
+		skb_mark_for_recycle(skb);
 }
 
 static void igb_rx_inband_work(struct irq_work *irq_work)
@@ -864,6 +893,28 @@ static void igb_flush_page(struct igb_ring *rx_ring,
 	}
 }
 
+static int igb_alloc_inband_wheel(struct igb_ring *ring,
+				void (*handler)(struct irq_work *irq_work))
+{
+	size_t size = sizeof(struct igb_inband_work) * ring->count;
+
+	ring->inband_flush = vmalloc(size);
+	if (!ring->inband_flush)
+		return -ENOMEM;
+
+	init_irq_work(&ring->inband_irq_work, handler);
+	ring->next_to_defer = 0;
+	ring->next_to_flush = 0;
+
+	return 0;
+}
+
+static void igb_free_inband_wheel(struct igb_ring *ring)
+{
+	vfree(ring->inband_flush); /* Ok if NULL. */
+	ring->inband_flush = NULL;
+}
+
 static void igb_tx_inband_work(struct irq_work *irq_work)
 {
 	struct igb_ring *ring = container_of(irq_work, struct igb_ring, inband_irq_work);
@@ -895,7 +946,12 @@ static void igb_unmap_buffer(struct igb_ring *tx_ring,
 	}
 }
 
-static inline u32 igb_get_icr(struct igb_adapter *adapter)
+static inline bool igb_is_oob_tx(struct igb_tx_buffer *tx_buffer)
+{
+	return tx_buffer->tx_flags & IGB_TX_OOB;
+}
+
+static u32 igb_get_icr(struct igb_adapter *adapter)
 {
 	struct e1000_hw *hw = &adapter->hw;
 	u32 icr;
@@ -911,23 +967,66 @@ static inline u32 igb_get_icr(struct igb_adapter *adapter)
 	return adapter->cached_icr;
 }
 
-static inline void igb_clear_icr(struct igb_adapter *adapter)
+static void igb_clear_icr(struct igb_adapter *adapter)
 {
 	adapter->cached_icr = 0;
+}
+
+static u32 igb_get_tsicr(struct igb_adapter *adapter)
+{
+	struct e1000_hw *hw = &adapter->hw;
+	u32 tsicr;
+
+	if (igb_net_oob() && running_inband()) {
+		tsicr = adapter->cached_tsicr;
+		adapter->cached_tsicr = 0;
+		return tsicr;
+	}
+
+	adapter->cached_tsicr |= rd32(E1000_TSICR);
+
+	return adapter->cached_tsicr;
 }
 
 #else  /* !CONFIG_IGB_OOB */
 
 #define IGB_IRQ_FLAGS  0
+#define igb_tx_inband_work	NULL
+#define igb_rx_inband_work	NULL
 
 static inline void igb_create_oob_pool(struct igb_ring *ring)
 {
+}
+
+static inline void igb_destroy_oob_pool(struct igb_ring *ring)
+{
+}
+
+static int igb_alloc_inband_wheel(struct igb_ring *ring,
+				void (*handler)(struct irq_work *irq_work))
+{
+	return 0;
+}
+
+static inline void igb_free_inband_wheel(struct igb_ring *ring)
+{
+}
+
+static inline struct page *igb_alloc_rx_page(struct igb_ring *rx_ring)
+{
+	return dev_alloc_pages(igb_rx_pg_order(rx_ring));
 }
 
 static inline bool igb_is_oob_page(struct igb_ring *rx_ring,
 				struct page *page)
 {
 	return false;
+}
+
+static inline void igb_mark_oob_page(struct sk_buff *skb,
+				struct igb_ring *rx_ring,
+				struct page *page)
+{
 }
 
 static void igb_flush_page(struct igb_ring *rx_ring,
@@ -946,15 +1045,27 @@ static void igb_unmap_buffer(struct igb_ring *tx_ring,
 			DMA_TO_DEVICE);
 }
 
-static inline u32 igb_get_icr(struct igb_adapter *adapter)
+static inline bool igb_is_oob_tx(struct igb_tx_buffer *tx_buffer)
+{
+	return false;
+}
+
+static u32 igb_get_icr(struct igb_adapter *adapter)
 {
 	struct e1000_hw *hw = &adapter->hw;
 
 	return rd32(E1000_ICR);
 }
 
-static inline void igb_clear_icr(struct igb_adapter *adapter)
+static void igb_clear_icr(struct igb_adapter *adapter)
 {
+}
+
+static u32 igb_get_tsicr(struct igb_adapter *adapter)
+{
+	struct e1000_hw *hw = &adapter->hw;
+
+	return rd32(E1000_TSICR);
 }
 
 #endif	/* !CONFIG_IGB_OOB */
@@ -4519,17 +4630,8 @@ int igb_setup_tx_resources(struct igb_ring *tx_ring)
 	if (!tx_ring->tx_buffer_info)
 		goto err;
 
-#ifdef CONFIG_IGB_OOB
-	size = sizeof(struct igb_inband_work) * tx_ring->count;
-
-	tx_ring->inband_flush = vmalloc(size);
-	if (!tx_ring->inband_flush)
+	if (igb_alloc_inband_wheel(tx_ring, igb_tx_inband_work))
 		goto err;
-
-	init_irq_work(&tx_ring->inband_irq_work, igb_tx_inband_work);
-	tx_ring->next_to_defer = 0;
-	tx_ring->next_to_flush = 0;
-#endif
 
 	/* round up to nearest 4K */
 	tx_ring->size = tx_ring->count * sizeof(union e1000_adv_tx_desc);
@@ -4548,10 +4650,7 @@ int igb_setup_tx_resources(struct igb_ring *tx_ring)
 err:
 	vfree(tx_ring->tx_buffer_info);
 	tx_ring->tx_buffer_info = NULL;
-#ifdef CONFIG_IGB_OOB
-	vfree(tx_ring->inband_flush);
-	tx_ring->inband_flush = NULL;
-#endif
+	igb_free_inband_wheel(tx_ring);
 	dev_err(dev, "Unable to allocate memory for the Tx descriptor ring\n");
 	return -ENOMEM;
 }
@@ -4696,17 +4795,8 @@ int igb_setup_rx_resources(struct igb_ring *rx_ring)
 	if (!rx_ring->rx_buffer_info)
 		goto err;
 
-#ifdef CONFIG_IGB_OOB
-	size = sizeof(struct igb_inband_work) * rx_ring->count;
-
-	rx_ring->inband_flush = vmalloc(size);
-	if (!rx_ring->inband_flush)
+	if (igb_alloc_inband_wheel(rx_ring, igb_rx_inband_work))
 		goto err;
-
-	init_irq_work(&rx_ring->inband_irq_work, igb_rx_inband_work);
-	rx_ring->next_to_defer = 0;
-	rx_ring->next_to_flush = 0;
-#endif
 
 	/* Round up to nearest 4K */
 	rx_ring->size = rx_ring->count * sizeof(union e1000_adv_rx_desc);
@@ -4729,10 +4819,7 @@ err:
 	xdp_rxq_info_unreg(&rx_ring->xdp_rxq);
 	vfree(rx_ring->rx_buffer_info);
 	rx_ring->rx_buffer_info = NULL;
-#ifdef CONFIG_IGB_OOB
-	vfree(rx_ring->inband_flush);
-	rx_ring->inband_flush = NULL;
-#endif
+	igb_free_inband_wheel(rx_ring);
 	dev_err(dev, "Unable to allocate memory for the Rx descriptor ring\n");
 	return -ENOMEM;
 }
@@ -5133,10 +5220,7 @@ void igb_free_tx_resources(struct igb_ring *tx_ring)
 
 	vfree(tx_ring->tx_buffer_info);
 	tx_ring->tx_buffer_info = NULL;
-#ifdef CONFIG_IGB_OOB
-	vfree(tx_ring->inband_flush);
-	tx_ring->inband_flush = NULL;
-#endif
+	igb_free_inband_wheel(tx_ring);
 
 	/* if not set, then don't free */
 	if (!tx_ring->desc)
@@ -5161,11 +5245,6 @@ static void igb_free_all_tx_resources(struct igb_adapter *adapter)
 	for (i = 0; i < adapter->num_tx_queues; i++)
 		if (adapter->tx_ring[i])
 			igb_free_tx_resources(adapter->tx_ring[i]);
-}
-
-static inline bool igb_is_oob_tx(struct igb_tx_buffer *tx_buffer)
-{
-	return igb_net_oob() && tx_buffer->tx_flags & IGB_TX_OOB;
 }
 
 /**
@@ -5262,10 +5341,7 @@ void igb_free_rx_resources(struct igb_ring *rx_ring)
 	xdp_rxq_info_unreg(&rx_ring->xdp_rxq);
 	vfree(rx_ring->rx_buffer_info);
 	rx_ring->rx_buffer_info = NULL;
-#ifdef CONFIG_IGB_OOB
-	vfree(rx_ring->inband_flush);
-	rx_ring->inband_flush = NULL;
-#endif
+	igb_free_inband_wheel(rx_ring);
 
 	/* if not set, then don't free */
 	if (!rx_ring->desc)
@@ -5340,12 +5416,7 @@ static void igb_clean_rx_ring(struct igb_ring *rx_ring)
 	rx_ring->next_to_clean = 0;
 	rx_ring->next_to_use = 0;
 
-#ifdef CONFIG_IGB_OOB
-	if (rx_ring->rx_oob_pool) {
-		page_pool_destroy(rx_ring->rx_oob_pool);
-		rx_ring->rx_oob_pool = NULL;
-	}
-#endif
+	igb_destroy_oob_pool(rx_ring);
 }
 
 /**
@@ -7304,31 +7375,6 @@ static void igb_extts(struct igb_adapter *adapter, int tsintr_tt)
 	ptp_clock_event(adapter->ptp_clock, &event);
 }
 
-#ifdef CONFIG_IGB_OOB
-static inline u32 igb_get_tsicr(struct igb_adapter *adapter)
-{
-	struct e1000_hw *hw = &adapter->hw;
-	u32 tsicr;
-
-	if (igb_net_oob() && running_inband()) {
-		tsicr = adapter->cached_tsicr;
-		adapter->cached_tsicr = 0;
-		return tsicr;
-	}
-
-	adapter->cached_tsicr |= rd32(E1000_TSICR);
-
-	return adapter->cached_tsicr;
-}
-#else
-static inline u32 igb_get_tsicr(struct igb_adapter *adapter)
-{
-	struct e1000_hw *hw = &adapter->hw;
-
-	return rd32(E1000_TSICR);
-}
-#endif
-
 static void igb_tsync_interrupt(struct igb_adapter *adapter)
 {
 	const u32 mask = (TSINTR_SYS_WRAP | E1000_TSICR_TXTS |
@@ -8956,8 +9002,7 @@ static struct sk_buff *igb_build_skb(struct igb_ring *rx_ring,
 	if (unlikely(!skb))
 		return NULL;
 
-	if (igb_is_oob_page(rx_ring, rx_buffer->page))
-		skb_mark_for_recycle(skb);
+	igb_mark_oob_page(skb, rx_ring, rx_buffer->page);
 
 	/* update pointers within the skb to store the data */
 	skb_reserve(skb, xdp->data - xdp->data_hard_start);
@@ -9425,13 +9470,7 @@ static bool igb_alloc_mapped_page(struct igb_ring *rx_ring,
 		return true;
 
 	/* alloc new page for storage */
-#ifdef CONFIG_IGB_OOB
-	if (igb_running_oob())
-		page = page_pool_dev_alloc_pages(rx_ring->rx_oob_pool);
-	else
-#endif
-		page = dev_alloc_pages(igb_rx_pg_order(rx_ring));
-
+	page = igb_alloc_rx_page(rx_ring);
 	if (unlikely(!page)) {
 		WARN_ON_ONCE(1);
 		rx_ring->rx_stats.alloc_failed++;
