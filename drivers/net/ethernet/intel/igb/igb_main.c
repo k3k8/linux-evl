@@ -752,20 +752,21 @@ static int igb_enable_oob(struct net_device *netdev)
 			return -ENOMEM;
 
 	if (adapter->flags & IGB_FLAG_HAS_MSIX) {
-		pr_info("%s: enabling out-of-band I/O mode (MSI-X)\n", netdev_name(netdev));
 		for (n = 0; n <= adapter->num_q_vectors && n <= MAX_Q_VECTORS; n++) {
 			ret = irq_switch_oob(adapter->msix_entries[n].vector, true);
 			if (ret) {
 				while (--n >= 0)
 					irq_switch_oob(adapter->msix_entries[n].vector, false);
-				break;
+				return ret;
 			}
 		}
+		pr_info("%s: enabled out-of-band I/O mode (MSI-X)\n", netdev_name(netdev));
 	} else {
 		ret = irq_switch_oob(adapter->pdev->irq, true);
-		pr_info("%s: enabling out-of-band I/O mode (%s)\n",
-			netdev_name(netdev),
-			adapter->flags & IGB_FLAG_HAS_MSI ? "MSI" : "legacy-int");
+		if (!ret)
+			pr_info("%s: enabled out-of-band I/O mode (%s)\n",
+				netdev_name(netdev),
+				adapter->flags & IGB_FLAG_HAS_MSI ? "MSI" : "legacy-int");
 	}
 
 	return ret;
@@ -777,12 +778,12 @@ static void igb_disable_oob(struct net_device *netdev)
 	int n;
 
 	if (adapter->flags & IGB_FLAG_HAS_MSIX) {
-		pr_info("%s: disabling out-of-band I/O mode (MSI-X)\n", netdev_name(netdev));
 		for (n = 0; n <= adapter->num_q_vectors && n <= MAX_Q_VECTORS; n++)
 			irq_switch_oob(adapter->msix_entries[n].vector, false);
+		pr_info("%s: disabled out-of-band I/O mode (MSI-X)\n", netdev_name(netdev));
 	} else {
 		irq_switch_oob(adapter->pdev->irq, false);
-		pr_info("%s: disabling out-of-band I/O mode (%s)\n",
+		pr_info("%s: disabled out-of-band I/O mode (%s)\n",
 			netdev_name(netdev),
 			adapter->flags & IGB_FLAG_HAS_MSI ? "MSI" : "legacy-int");
 	}
