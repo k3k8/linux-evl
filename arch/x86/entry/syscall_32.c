@@ -173,6 +173,7 @@ __visible noinstr void do_int80_emulation(struct pt_regs *regs)
 	if (dovetailing()) {
 		if (nr == EXIT_SYSCALL_OOB) {
 			hard_local_irq_disable();
+			instrumentation_end();
 			return;
 		}
 		if (nr == EXIT_SYSCALL_TAIL)
