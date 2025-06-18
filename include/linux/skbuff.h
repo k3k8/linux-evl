@@ -5222,6 +5222,7 @@ ssize_t skb_splice_from_iter(struct sk_buff *skb, struct iov_iter *iter,
 #ifdef CONFIG_NET_OOB
 
 #include <net/page_pool/helpers.h>
+#include <linux/skbuff_ref.h>
 
 extern unsigned int sysctl_max_oob_skb;
 
@@ -5283,12 +5284,26 @@ static inline struct skb_shared_oob *skb_shinfo_oob(struct sk_buff *skb)
 	return &skb_shinfo(skb)->oob_shinfo;
 }
 
+/**
+ * skb_oob_dma_addr - Return the DMA address of a pre-mapped buffer
+ * obtained from an oob pool.
+ *
+ * DMA_MAPPING_ERROR is returned if the skb is dataless, or its
+ * storage area does not belong to an oob page pool.
+ */
 static inline dma_addr_t skb_oob_dma_addr(const struct sk_buff *skb)
 {
-	if (!skb->head || !skb_is_oob_managed(skb) || !skb->pp_recycle)
+	struct page *page = skb->head ? virt_to_page(skb->head) : NULL;
+	struct page_pool *pool;
+
+	if (!page)
 		return DMA_MAPPING_ERROR;
 
-	return page_pool_get_dma_addr(virt_to_page(skb->head));
+	pool = napi_pp_get_pool(page_to_netmem(page));
+	if (!pool || !page_pool_is_oob(pool))
+		return DMA_MAPPING_ERROR;
+
+	return page_pool_get_dma_addr(page);
 }
 
 bool recycle_skb_oob(struct sk_buff *skb);
