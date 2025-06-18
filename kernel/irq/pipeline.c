@@ -15,6 +15,7 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/smp.h>
+#include <linux/inband_work.h>
 #include <dovetail/irq.h>
 #include <trace/events/irq.h>
 #include "internals.h"
@@ -1712,9 +1713,9 @@ static irqreturn_t inband_work_interrupt(int sirq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static struct irqaction inband_work = {
+static struct irqaction inband_irq_work = {
 	.handler = inband_work_interrupt,
-	.name = "in-band work",
+	.name = "in-band irq work",
 	.flags = IRQF_NO_THREAD,
 };
 
@@ -1735,6 +1736,18 @@ void irq_local_work_raise(void)
 		sync_current_irq_stage();
 	hard_local_irq_restore(flags);
 }
+
+void inband_work_trigger(struct irq_work *irq_work)
+{
+	struct inband_work_struct *iwork =
+		container_of(irq_work, struct inband_work_struct, irq_work);
+
+	if (unlikely(xchg(&iwork->cancel_pending, false)))
+		cancel_work(&iwork->work);
+	else
+		schedule_work(&iwork->work);
+}
+EXPORT_SYMBOL(inband_work_trigger);
 
 #ifdef CONFIG_DEBUG_IRQ_PIPELINE
 
@@ -1873,7 +1886,7 @@ void __init irq_pipeline_init(void)
 						    &sirq_domain_ops,
 						    NULL);
 	inband_work_sirq = irq_create_direct_mapping(synthetic_irq_domain);
-	setup_percpu_irq(inband_work_sirq, &inband_work);
+	setup_percpu_irq(inband_work_sirq, &inband_irq_work);
 
 	/*
 	 * We are running on the boot CPU, hw interrupts are off, and
