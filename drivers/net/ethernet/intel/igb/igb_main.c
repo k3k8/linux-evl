@@ -977,23 +977,32 @@ static inline bool igb_is_oob_tx(struct igb_tx_buffer *tx_buffer)
 	return tx_buffer->tx_flags & IGB_TX_OOB;
 }
 
+static inline bool igb_in_primary_irqctx(struct igb_adapter *adapter)
+{
+	if (!igb_net_oob() || running_oob())
+		return true;
+
+	return !netif_oob_diversion(adapter->netdev);
+}
+
 static u32 igb_get_icr(struct igb_adapter *adapter)
 {
 	struct e1000_hw *hw = &adapter->hw;
 	u32 icr;
 
-	if (igb_net_oob() && running_inband()) {
+	if (!igb_in_primary_irqctx(adapter)) {
 		icr = adapter->cached_icr;
 		adapter->cached_icr = 0;
 		return icr;
 	}
 
-	adapter->cached_icr |= rd32(E1000_ICR);
+	icr = rd32(E1000_ICR);
+	adapter->cached_icr |= icr;
 
 	return adapter->cached_icr;
 }
 
-static void igb_clear_icr(struct igb_adapter *adapter)
+static inline void igb_clear_icr(struct igb_adapter *adapter)
 {
 	adapter->cached_icr = 0;
 }
@@ -1003,15 +1012,31 @@ static u32 igb_get_tsicr(struct igb_adapter *adapter)
 	struct e1000_hw *hw = &adapter->hw;
 	u32 tsicr;
 
-	if (igb_net_oob() && running_inband()) {
+	if (!igb_in_primary_irqctx(adapter)) {
 		tsicr = adapter->cached_tsicr;
 		adapter->cached_tsicr = 0;
 		return tsicr;
 	}
 
-	adapter->cached_tsicr |= rd32(E1000_TSICR);
+	tsicr = rd32(E1000_TSICR);
+	adapter->cached_tsicr |= tsicr;
 
 	return adapter->cached_tsicr;
+}
+
+static irqreturn_t igb_eoi(struct igb_adapter *adapter, u32 icr, int forward_mask)
+{
+	/*
+	 * Forwarding means that the calling handler is going to be
+	 * reentered from the inband stage asap later on.
+	 */
+	if (igb_running_oob() && (icr & forward_mask))
+		return IRQ_FORWARD;
+
+	adapter->cached_icr = 0;
+	adapter->cached_tsicr = 0;
+
+	return IRQ_HANDLED;
 }
 
 #else  /* !CONFIG_IGB_OOB */
@@ -1076,22 +1101,33 @@ static inline bool igb_is_oob_tx(struct igb_tx_buffer *tx_buffer)
 	return false;
 }
 
-static u32 igb_get_icr(struct igb_adapter *adapter)
+static inline u32 igb_get_icr(struct igb_adapter *adapter)
 {
 	struct e1000_hw *hw = &adapter->hw;
 
 	return rd32(E1000_ICR);
 }
 
-static void igb_clear_icr(struct igb_adapter *adapter)
+static inline void igb_clear_icr(struct igb_adapter *adapter)
 {
 }
 
-static u32 igb_get_tsicr(struct igb_adapter *adapter)
+static inline irqreturn_t igb_eoi(struct igb_adapter *adapter,
+				u32 icr, int forward_mask)
+{
+	return IRQ_HANDLED;
+}
+
+static inline u32 igb_get_tsicr(struct igb_adapter *adapter)
 {
 	struct e1000_hw *hw = &adapter->hw;
 
 	return rd32(E1000_TSICR);
+}
+
+static inline bool igb_in_primary_irqctx(struct igb_adapter *adapter)
+{
+	return true;
 }
 
 #endif	/* !CONFIG_IGB_OOB */
@@ -7451,40 +7487,41 @@ static irqreturn_t igb_msix_other(int irq, void *data)
 	u32 icr = igb_get_icr(adapter);
 	/* reading ICR causes bit 31 of EICR to be cleared */
 
-	if (running_inband()) {
-		if (icr & E1000_ICR_DRSTA)
-			schedule_work(&adapter->reset_task);
+	if (running_oob())
+		goto skip_inband;
 
-		if (icr & E1000_ICR_DOUTSYNC) {
-			/* HW is reporting DMA is out of sync */
-			adapter->stats.doosync++;
-			/* The DMA Out of Sync is also indication of a spoof event
-			 * in IOV mode. Check the Wrong VM Behavior register to
-			 * see if it is really a spoof event.
-			 */
-			igb_check_wvbr(adapter);
-		}
+	if (icr & E1000_ICR_DRSTA)
+		schedule_work(&adapter->reset_task);
 
-		/* Check for a mailbox event */
-		if (icr & E1000_ICR_VMMB)
-			igb_msg_task(adapter);
-
-		if (icr & E1000_ICR_LSC) {
-			hw->mac.get_link_status = 1;
-			/* guard against interrupt when we're going down */
-			if (!test_bit(__IGB_DOWN, &adapter->state))
-				mod_timer(&adapter->watchdog_timer, jiffies + 1);
-		}
+	if (icr & E1000_ICR_DOUTSYNC) {
+		/* HW is reporting DMA is out of sync */
+		adapter->stats.doosync++;
+		/* The DMA Out of Sync is also indication of a spoof event
+		 * in IOV mode. Check the Wrong VM Behavior register to
+		 * see if it is really a spoof event.
+		 */
+		igb_check_wvbr(adapter);
 	}
 
+	/* Check for a mailbox event */
+	if (icr & E1000_ICR_VMMB)
+		igb_msg_task(adapter);
+
+	if (icr & E1000_ICR_LSC) {
+		hw->mac.get_link_status = 1;
+		/* guard against interrupt when we're going down */
+		if (!test_bit(__IGB_DOWN, &adapter->state))
+			mod_timer(&adapter->watchdog_timer, jiffies + 1);
+	}
+
+skip_inband:
 	if (icr & E1000_ICR_TS)
 		igb_tsync_interrupt(adapter);
 
-	if (!igb_net_oob() || igb_running_oob())
+	if (igb_in_primary_irqctx(adapter))
 		wr32(E1000_EIMS, adapter->eims_other);
 
-	return igb_running_oob() && (icr & E1000_ICR_OTHER_FORWARD_MASK)
-		? IRQ_FORWARD : IRQ_HANDLED;
+	return igb_eoi(adapter, icr, E1000_ICR_OTHER_FORWARD_MASK);
 }
 
 static void igb_write_itr(struct igb_q_vector *q_vector)
@@ -8537,37 +8574,34 @@ static irqreturn_t igb_intr_msi(int irq, void *data)
 	/* read ICR disables interrupts using IAM */
 	u32 icr = igb_get_icr(adapter);
 
-	if (!igb_net_oob() || igb_running_oob())
+	if (igb_in_primary_irqctx(adapter))
 		igb_write_itr(q_vector);
 
-	if (running_inband()) {
-		if (icr & E1000_ICR_DRSTA)
-			schedule_work(&adapter->reset_task);
+	if (running_oob())
+		goto skip_inband;
 
-		if (icr & E1000_ICR_DOUTSYNC) {
-			/* HW is reporting DMA is out of sync */
-			adapter->stats.doosync++;
-		}
+	if (icr & E1000_ICR_DRSTA)
+		schedule_work(&adapter->reset_task);
 
-		if (icr & (E1000_ICR_RXSEQ | E1000_ICR_LSC)) {
-			hw->mac.get_link_status = 1;
-			if (!test_bit(__IGB_DOWN, &adapter->state))
-				mod_timer(&adapter->watchdog_timer, jiffies + 1);
-		}
+	if (icr & E1000_ICR_DOUTSYNC) {
+		/* HW is reporting DMA is out of sync */
+		adapter->stats.doosync++;
 	}
 
+	if (icr & (E1000_ICR_RXSEQ | E1000_ICR_LSC)) {
+		hw->mac.get_link_status = 1;
+		if (!test_bit(__IGB_DOWN, &adapter->state))
+			mod_timer(&adapter->watchdog_timer, jiffies + 1);
+	}
+
+skip_inband:
 	if (icr & E1000_ICR_TS)
 		igb_tsync_interrupt(adapter);
 
-	if (!igb_net_oob() || igb_running_oob())
+	if (igb_in_primary_irqctx(adapter))
 		napi_schedule(&q_vector->napi);
 
-	/*
-	 * Forwarding means that the current oob handler is going to
-	 * be reentered from the inband stage asap later on.
-	 */
-	return running_oob() && (icr & E1000_ICR_FORWARD_MASK)
-		? IRQ_FORWARD : IRQ_HANDLED;
+	return igb_eoi(adapter, icr, E1000_ICR_FORWARD_MASK);
 }
 
 /**
@@ -8593,34 +8627,35 @@ static irqreturn_t igb_intr(int irq, void *data)
 		return IRQ_NONE;
 	}
 
-	if (!igb_net_oob() || igb_running_oob())
+	if (igb_in_primary_irqctx(adapter))
 		igb_write_itr(q_vector);
 
-	if (running_inband()) {
-		if (icr & E1000_ICR_DRSTA)
-			schedule_work(&adapter->reset_task);
+	if (running_oob())
+		goto skip_inband;
 
-		if (icr & E1000_ICR_DOUTSYNC) {
-			/* HW is reporting DMA is out of sync */
-			adapter->stats.doosync++;
-		}
+	if (icr & E1000_ICR_DRSTA)
+		schedule_work(&adapter->reset_task);
 
-		if (icr & (E1000_ICR_RXSEQ | E1000_ICR_LSC)) {
-			hw->mac.get_link_status = 1;
-			/* guard against interrupt when we're going down */
-			if (!test_bit(__IGB_DOWN, &adapter->state))
-				mod_timer(&adapter->watchdog_timer, jiffies + 1);
-		}
+	if (icr & E1000_ICR_DOUTSYNC) {
+		/* HW is reporting DMA is out of sync */
+		adapter->stats.doosync++;
 	}
 
+	if (icr & (E1000_ICR_RXSEQ | E1000_ICR_LSC)) {
+		hw->mac.get_link_status = 1;
+		/* guard against interrupt when we're going down */
+		if (!test_bit(__IGB_DOWN, &adapter->state))
+			mod_timer(&adapter->watchdog_timer, jiffies + 1);
+	}
+
+skip_inband:
 	if (icr & E1000_ICR_TS)
 		igb_tsync_interrupt(adapter);
 
-	if (!igb_net_oob() || igb_running_oob())
+	if (igb_in_primary_irqctx(adapter))
 		napi_schedule(&q_vector->napi);
 
-	return running_oob() && (icr & E1000_ICR_FORWARD_MASK)
-		? IRQ_FORWARD : IRQ_HANDLED;
+	return igb_eoi(adapter, icr, E1000_ICR_FORWARD_MASK);
 }
 
 static void igb_ring_irq_enable(struct igb_q_vector *q_vector)
