@@ -322,7 +322,7 @@ static int mii_cnt;
 
 static int fec_enet_get_irq_cnt(struct platform_device *pdev);
 
-static int fec_enable_oob(struct net_device *ndev)
+static int fec_enet_enable_oob(struct net_device *ndev)
 {
 	struct fec_enet_private *fep = netdev_priv(ndev);
 	int nr_irqs = fec_enet_get_irq_cnt(fep->pdev), n, ret = 0;
@@ -345,7 +345,7 @@ static int fec_enable_oob(struct net_device *ndev)
 	return ret;
 }
 
-static void fec_disable_oob(struct net_device *ndev)
+static void fec_enet_disable_oob(struct net_device *ndev)
 {
 	struct fec_enet_private *fep = netdev_priv(ndev);
 	int nr_irqs = fec_enet_get_irq_cnt(fep->pdev), n;
@@ -360,9 +360,66 @@ static void fec_disable_oob(struct net_device *ndev)
 	napi_enable(&fep->napi);
 }
 
+static void release_inband_work(struct irq_work *irq_work)
+{
+	struct fec_enet_priv_tx_q *txq = container_of(irq_work, struct fec_enet_priv_tx_q, inband_irq_work);
+
+	while (txq->next_to_flush != READ_ONCE(txq->next_to_defer)) {
+		int ntf = txq->next_to_flush;
+		struct fec_inband_work *fl = txq->inband_flush + ntf;
+		dma_unmap_single(fl->dev, fl->addr, fl->size, DMA_TO_DEVICE);
+		txq->next_to_flush = (ntf + 1) % TX_RING_SIZE;
+	}
+}
+
+static void release_tx_mapping(struct sk_buff *skb,
+			struct fec_enet_priv_tx_q *txq,
+			struct device *dev, dma_addr_t addr, size_t size)
+{
+	if (!fec_net_oob() || !skb || !skb_is_oob_managed(skb)) {
+		if (fec_running_oob()) {
+			int ntd = txq->next_to_defer;
+			struct fec_inband_work *fl = txq->inband_flush + ntd;
+			fl->addr = addr;
+			fl->size = size;
+			fl->dev = dev;
+			WRITE_ONCE(txq->next_to_defer, (ntd + 1) % TX_RING_SIZE);
+			irq_work_queue(&txq->inband_irq_work);
+		} else {
+			dma_unmap_single(dev, addr, size, DMA_TO_DEVICE);
+		}
+	} else {
+		/*
+		 * An oob-managed storage should not be unmapped, this
+		 * operation is handled when required by the page pool
+		 * it belongs to. We only need to synchronize the CPU
+		 * caches for the specified I/O direction.
+		 */
+		dma_sync_single_for_cpu(dev, addr, size, DMA_TO_DEVICE);
+	}
+}
+
+static void fec_enet_init_ring_oob(struct fec_enet_priv_tx_q *txq)
+{
+	init_irq_work(&txq->inband_irq_work, release_inband_work);
+	txq->next_to_defer = 0;
+	txq->next_to_flush = 0;
+}
+
 #else  /* !CONFIG_FEC_OOB */
 
 #define FEC_IRQ_FLAGS  0
+
+static void release_tx_mapping(struct sk_buff *skb,
+			struct fec_enet_priv_tx_q *txq,
+			struct device *dev, dma_addr_t addr, size_t size)
+{
+	dma_sync_single_for_cpu(dev, addr, size, DMA_TO_DEVICE);
+}
+
+static inline void fec_enet_init_ring_oob(struct fec_enet_priv_tx_q *txq)
+{
+}
 
 #endif	/* !CONFIG_FEC_OOB */
 
@@ -586,58 +643,6 @@ static dma_addr_t get_dma_mapping(struct sk_buff *skb,
 
 	return addr;
 }
-
-#ifdef CONFIG_FEC_OOB
-
-static void release_inband_work(struct irq_work *irq_work)
-{
-	struct fec_enet_priv_tx_q *txq = container_of(irq_work, struct fec_enet_priv_tx_q, inband_irq_work);
-
-	while (txq->next_to_flush != READ_ONCE(txq->next_to_defer)) {
-		int ntf = txq->next_to_flush;
-		struct fec_inband_work *fl = txq->inband_flush + ntf;
-		dma_unmap_single(fl->dev, fl->addr, fl->size, DMA_TO_DEVICE);
-		txq->next_to_flush = (ntf + 1) % TX_RING_SIZE;
-	}
-}
-
-static void release_tx_mapping(struct sk_buff *skb,
-			struct fec_enet_priv_tx_q *txq,
-			struct device *dev, dma_addr_t addr, size_t size)
-{
-	if (!fec_net_oob() || !skb || !skb_is_oob_managed(skb)) {
-		if (fec_running_oob()) {
-			int ntd = txq->next_to_defer;
-			struct fec_inband_work *fl = txq->inband_flush + ntd;
-			fl->addr = addr;
-			fl->size = size;
-			fl->dev = dev;
-			WRITE_ONCE(txq->next_to_defer, (ntd + 1) % TX_RING_SIZE);
-			irq_work_queue(&txq->inband_irq_work);
-		} else {
-			dma_unmap_single(dev, addr, size, DMA_TO_DEVICE);
-		}
-	} else {
-		/*
-		 * An oob-managed storage should not be unmapped, this
-		 * operation is handled when required by the page pool
-		 * it belongs to. We only need to synchronize the CPU
-		 * caches for the specified I/O direction.
-		 */
-		dma_sync_single_for_cpu(dev, addr, size, DMA_TO_DEVICE);
-	}
-}
-
-#else	/* !CONFIG_FEC_OOB */
-
-static void release_tx_mapping(struct sk_buff *skb,
-			struct fec_enet_priv_tx_q *txq,
-			struct device *dev, dma_addr_t addr, size_t size)
-{
-	dma_sync_single_for_cpu(dev, addr, size, DMA_TO_DEVICE);
-}
-
-#endif	/* !CONFIG_FEC_OOB */
 
 static struct bufdesc *
 fec_enet_txq_submit_frag_skb(struct fec_enet_priv_tx_q *txq,
@@ -3648,11 +3653,7 @@ fec_enet_alloc_txq_buffers(struct net_device *ndev, unsigned int queue)
 
 		bdp = fec_enet_get_nextdesc(bdp, &txq->bd);
 
-#ifdef CONFIG_FEC_OOB
-		init_irq_work(&txq->inband_irq_work, release_inband_work);
-		txq->next_to_defer = 0;
-		txq->next_to_flush = 0;
-#endif
+		fec_enet_init_ring_oob(txq);
 	}
 
 	/* Set the last buffer to wrap. */
@@ -4186,8 +4187,8 @@ static const struct net_device_ops fec_netdev_ops = {
 	.ndo_set_mac_address	= fec_set_mac_address,
 	.ndo_eth_ioctl		= phy_do_ioctl_running,
 #ifdef CONFIG_FEC_OOB
-	.ndo_enable_oob		= fec_enable_oob,
-	.ndo_disable_oob	= fec_disable_oob,
+	.ndo_enable_oob		= fec_enet_enable_oob,
+	.ndo_disable_oob	= fec_enet_disable_oob,
 #endif
 	.ndo_set_features	= fec_set_features,
 	.ndo_bpf		= fec_enet_bpf,
