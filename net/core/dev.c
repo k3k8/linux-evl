@@ -5304,6 +5304,31 @@ bool netif_receive_oob(struct sk_buff *skb)
 	return false;	     /* Not handled, caller should pick it. */
 }
 
+/* RX counterpart to dev_queue_xmit_nit() for use by the oob netstack. */
+int dev_queue_recv_nit(struct sk_buff *skb, struct net_device *dev)
+{
+	struct packet_type *ptype;
+	int _ret, ret = 0;
+
+	rcu_read_lock();
+
+	list_for_each_entry_rcu(ptype, &net_hotdata.ptype_all, list) {
+		_ret = deliver_skb(skb, ptype, dev);
+		if (unlikely(_ret && !ret))
+			ret = _ret;
+	}
+
+	list_for_each_entry_rcu(ptype, &skb->dev->ptype_all, list) {
+		_ret = deliver_skb(skb, ptype, dev);
+		if (unlikely(_ret && !ret))
+			ret = _ret;
+	}
+
+	rcu_read_unlock();
+
+	return ret;
+}
+
 static bool netif_receive_oob_list(struct list_head *head)
 {
 	struct sk_buff *skb, *next;
@@ -5347,7 +5372,7 @@ static void kick_rx_inband(struct irq_work *irq_work)
 __weak void netif_tx_wake_oob(struct netdev_queue *txq)
 { }
 
-#else
+#else  /* !CONFIG_NET_OOB */
 
 static inline bool netif_receive_oob_list(struct list_head *head)
 {
@@ -5363,7 +5388,7 @@ static inline void process_inband_tx_backlog(struct softnet_data *sd)
 static void process_inband_rx_backlog(struct softnet_data *sd)
 { }
 
-#endif
+#endif /* !CONFIG_NET_OOB */
 
 static int netif_rx_internal(struct sk_buff *skb)
 {
