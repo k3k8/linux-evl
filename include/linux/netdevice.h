@@ -4311,6 +4311,9 @@ static inline bool netdev_is_oob_capable(struct net_device *dev)
 
 bool netif_receive_oob(struct sk_buff *skb);
 
+int dev_queue_recv_nit(struct sk_buff *skb,
+		struct net_device *dev);
+
 /**
  *	netif_oob_diversion - is the ingress traffic diverted for out-of-band handling?
  *	@dev: network device
