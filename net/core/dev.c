@@ -3208,7 +3208,7 @@ void __dev_kfree_skb_irq(struct sk_buff *skb, enum skb_free_reason reason)
 
 	get_kfree_skb_cb(skb)->reason = reason;
 
-	if (recycle_skb_oob(skb))
+	if (skb_release_oob(skb))
 		return;
 
 	local_irq_save(flags);
