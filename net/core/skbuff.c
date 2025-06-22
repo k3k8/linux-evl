@@ -301,7 +301,7 @@ static void __build_skb_around(struct sk_buff *skb, void *data,
 
 #ifdef CONFIG_NET_OOB
 
-unsigned int sysctl_max_oob_skb __read_mostly = 16384;
+unsigned int sysctl_max_oob_skb __read_mostly = 4096;
 EXPORT_SYMBOL(sysctl_max_oob_skb);
 
 __weak void free_skb_oob(struct sk_buff *skb)
