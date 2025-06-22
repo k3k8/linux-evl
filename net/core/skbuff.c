@@ -483,7 +483,7 @@ struct sk_buff *__build_skb(void *data, unsigned int frag_size)
 
 	if (running_oob()) {
 		skb = get_oob_skb();
-		if (unlikely(!skb))
+		if (unlikely(WARN_ON_ONCE(!skb)))
 			return NULL;
 	} else {
 		skb = kmem_cache_alloc(net_hotdata.skbuff_cache,
@@ -597,14 +597,15 @@ EXPORT_SYMBOL(sysctl_max_oob_skb);
 __weak void free_skb_oob(struct sk_buff *skb)
 { }
 
-bool recycle_skb_oob(struct sk_buff *skb)
+bool skb_release_oob(struct sk_buff *skb)
 {
 	/*
-	 * Hand the buffer release over the out-of-band core either if
-	 * the latter manages the data storage or we are currently
-	 * running oob.
+	 * If the buffer was not already released by the out-of-band
+	 * core, hand it the buffer for release either if it manages
+	 * the data storage or we are currently running oob.
 	 */
-	if (running_oob() || skb_is_oob_managed(skb)) {
+	if (!skb_is_oob_released(skb) && (running_oob() || skb_is_oob_managed(skb))) {
+		skb_mark_oob_released(skb);
 		free_skb_oob(skb);
 		return true;
 	}
@@ -1346,7 +1347,7 @@ static void skb_release_all(struct sk_buff *skb, enum skb_drop_reason reason)
 
 void __kfree_skb(struct sk_buff *skb)
 {
-	if (recycle_skb_oob(skb))
+	if (skb_release_oob(skb))
 		return;
 
 	skb_release_all(skb, SKB_DROP_REASON_NOT_SPECIFIED);
@@ -1631,7 +1632,7 @@ static void napi_skb_cache_put(struct sk_buff *skb)
 
 void __napi_kfree_skb(struct sk_buff *skb, enum skb_drop_reason reason)
 {
-	if (recycle_skb_oob(skb))
+	if (skb_release_oob(skb))
 		return;
 
 	skb_release_all(skb, reason);
@@ -1673,7 +1674,7 @@ void napi_consume_skb(struct sk_buff *skb, int budget)
 		return;
 	}
 
-	if (recycle_skb_oob(skb))
+	if (skb_release_oob(skb))
 		return;
 
 	skb_release_all(skb, SKB_CONSUMED);
@@ -2248,8 +2249,6 @@ struct sk_buff *skb_clone(struct sk_buff *skb, gfp_t gfp_mask)
 
 		n->fclone = SKB_FCLONE_UNAVAILABLE;
 	}
-
-	__skb_inband_clone(n);
 
 	return __skb_clone(n, skb);
 }
@@ -6159,7 +6158,7 @@ EXPORT_SYMBOL(__skb_warn_lro_forwarding);
 void kfree_skb_partial(struct sk_buff *skb, bool head_stolen)
 {
 	if (head_stolen) {
-		if (!recycle_skb_oob(skb)) {
+		if (!skb_release_oob(skb)) {
 			skb_release_head_state(skb);
 			if (!__skb_oob_free_head(skb))
 				kmem_cache_free(net_hotdata.skbuff_cache, skb);
