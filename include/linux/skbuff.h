@@ -933,6 +933,10 @@ struct sk_buff {
 				head_frag:1,
 				pfmemalloc:1,
 				pp_recycle:1; /* page_pool recycle indicator */
+#ifdef CONFIG_NET_OOB
+	__u8			oob:1,
+				oob_released:1;
+#endif
 #ifdef CONFIG_SKB_EXTENSIONS
 	__u8			active_extensions;
 #endif
@@ -997,9 +1001,6 @@ struct sk_buff {
 	__u8			slow_gro:1;
 	__u8			csum_not_inet:1;
 	__u8			scm_io_uring:1;
-#ifdef CONFIG_NET_OOB
-	__u8			oob:1;
-#endif
 
 #ifdef CONFIG_NET_SCHED
 	__u16			tc_index;	/* traffic control index */
@@ -5178,6 +5179,16 @@ static inline void skb_mark_oob(struct sk_buff *skb)
 	skb->oob = 1;
 }
 
+static inline bool skb_is_oob_released(const struct sk_buff *skb)
+{
+	return skb->oob_released;
+}
+
+static inline void skb_mark_oob_released(struct sk_buff *skb)
+{
+	skb->oob_released = 1;
+}
+
 /**
  * skb_is_oob_timestamped - Whether the buffer is timestamped by a
  * companion core, in which case the timestamps should be stored in
@@ -5234,23 +5245,12 @@ static inline dma_addr_t skb_oob_dma_addr(const struct sk_buff *skb)
 	return page_pool_get_dma_addr(page);
 }
 
-bool recycle_skb_oob(struct sk_buff *skb);
+bool skb_release_oob(struct sk_buff *skb);
 void free_skb_oob(struct sk_buff *skb);
 
 static inline void finalize_skb_inband(struct sk_buff *skb)
 {
 	__kfree_skb(skb);
-}
-
-/**
- *	__skb_inband_clone - In-band specific setup for skbs for a
- *	newly allocated clone head. Other allocation places don't need
- *	that because they are memset-zeroed from skb to &skb->end
- *	before building the buffer around a data storage area.
- */
-static inline void __skb_inband_clone(struct sk_buff *skb)
-{
-	skb->oob = 0;
 }
 
 /**
@@ -5278,8 +5278,9 @@ static inline bool skb_is_oob(const struct sk_buff *skb)
 	return false;
 }
 
-static inline void __skb_inband_clone(struct sk_buff *skb)
+static inline bool skb_is_oob_released(const struct sk_buff *skb)
 {
+	return false;
 }
 
 static inline bool __skb_oob_free_head(struct sk_buff *skb)
@@ -5307,7 +5308,7 @@ static inline dma_addr_t skb_oob_dma_addr(const struct sk_buff *skb)
 	return DMA_MAPPING_ERROR;
 }
 
-static inline bool recycle_skb_oob(struct sk_buff *skb)
+static inline bool skb_release_oob(struct sk_buff *skb)
 {
 	return false;
 }
