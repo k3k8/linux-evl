@@ -342,6 +342,9 @@ static int fec_enet_enable_oob(struct net_device *ndev)
 	netif_tx_unlock_bh(ndev);
 	napi_enable(&fep->napi);
 
+	if (!ret)
+		pr_info("%s: enabled out-of-band I/O mode\n", netdev_name(ndev));
+
 	return ret;
 }
 
@@ -358,6 +361,8 @@ static void fec_enet_disable_oob(struct net_device *ndev)
 
 	netif_tx_unlock_bh(ndev);
 	napi_enable(&fep->napi);
+
+	pr_info("%s: disabled out-of-band I/O mode\n", netdev_name(ndev));
 }
 
 static void release_inband_work(struct irq_work *irq_work)
