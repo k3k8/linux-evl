@@ -89,7 +89,7 @@ config E1000E_HWTS
 
 config E1000E_OOB
 	bool "Out-of-band support for Intel(R) e1000e Gigabit Ethernet"
-	depends on NET_OOB
+	depends on E1000E && NET_OOB
 	help
 	  Enable out-of-band I/O. Say Y if a companion kernel may divert
 	  the network traffic going through e1000e devices for real-time delivery.
