@@ -132,6 +132,13 @@ bool flush_inband_work(struct inband_work_struct *iwork)
 		int tail;						\
 	};								\
 	__INBAND_BATCH_WORK(__tag, __handler, __count);			\
+	static inline void __PASTE(init_, __tag)(struct __tag *r)	\
+	{								\
+		init_irq_work(&r->irq_work, __PASTE(__tag, __trampoline)); \
+		INIT_WORK(&r->work, __PASTE(__tag, __batch));		\
+		r->head = 0;						\
+		r->tail = 0;						\
+	}								\
 	static inline void __PASTE(destroy_, __tag)(struct __tag *r)	\
 	{								\
 	}
