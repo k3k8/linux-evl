@@ -117,7 +117,7 @@ config IGB
 
 config IGB_OOB
 	bool "Out-of-band support for Intel(R) 82575/82576 Gigabit Ethernet"
-	depends on NET_OOB
+	depends on IGB && NET_OOB
 	help
 	  Enable out-of-band I/O. Say Y if a companion kernel may divert
 	  the network traffic going through IGB devices for real-time delivery.
