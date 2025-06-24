@@ -50,7 +50,6 @@
 #include <net/pkt_sched.h>
 #endif
 #include <linux/string.h>
-#include <linux/skbuff.h>
 #include <linux/skbuff_ref.h>
 #include <linux/splice.h>
 #include <linux/cache.h>
@@ -674,6 +673,29 @@ void put_oob_skb(struct sk_buff *skb)
 	raw_spin_unlock_irqrestore(&c->lock, flags);
 }
 EXPORT_SYMBOL(put_oob_skb);
+
+/**
+ * skb_oob_dma_addr - Return the DMA address of a pre-mapped buffer
+ * obtained from an oob pool.
+ *
+ * DMA_MAPPING_ERROR is returned if the skb is dataless, or its
+ * storage area does not belong to an oob page pool.
+ */
+dma_addr_t skb_oob_dma_addr(const struct sk_buff *skb)
+{
+	struct page *page = skb->head ? virt_to_page(skb->head) : NULL;
+	struct page_pool *pool;
+
+	if (!page)
+		return DMA_MAPPING_ERROR;
+
+	pool = napi_pp_get_pool(page_to_netmem(page));
+	if (!pool || !page_pool_is_oob(pool))
+		return DMA_MAPPING_ERROR;
+
+	return page_pool_get_dma_addr(page);
+}
+EXPORT_SYMBOL(skb_oob_dma_addr);
 
 #else  /* !CONFIG_NET_OOB */
 
