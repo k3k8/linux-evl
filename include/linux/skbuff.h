@@ -5165,6 +5165,16 @@ struct sk_buff *get_oob_skb(void);
 void put_oob_skb(struct sk_buff *skb);
 
 /**
+ * skb_init_inband - Set up the oob markers appropriately for an
+ * in-band skb.
+ */
+static inline void skb_init_inband(struct sk_buff *skb)
+{
+	skb->oob = 0;
+	skb->oob_released = 0;
+}
+
+/**
  * skb_is_oob - Whether the buffer shell was allocated from the oob
  * pool. Caution: this is distinct from a skb which storage is managed
  * by a companion core, see skb_is_oob_managed().
@@ -5187,6 +5197,11 @@ static inline bool skb_is_oob_released(const struct sk_buff *skb)
 static inline void skb_mark_oob_released(struct sk_buff *skb)
 {
 	skb->oob_released = 1;
+}
+
+static inline void skb_clear_oob_released(struct sk_buff *skb)
+{
+	skb->oob_released = 0;
 }
 
 /**
@@ -5272,6 +5287,10 @@ static inline bool __skb_oob_free_head(struct sk_buff *skb)
 }
 
 #else  /* !CONFIG_NET_OOB */
+
+static inline void skb_init_inband(struct sk_buff *skb)
+{
+}
 
 static inline bool skb_is_oob(const struct sk_buff *skb)
 {
