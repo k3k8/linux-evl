@@ -655,6 +655,7 @@ struct sk_buff *get_oob_skb(void)
 		raw_spin_unlock_irqrestore(&c->lock, flags);
 		memset(skb, 0, offsetof(struct sk_buff, tail));
 		skb_mark_oob(skb);
+		skb_clear_oob_released(skb);
 	} else {
 		raw_spin_unlock_irqrestore(&c->lock, flags);
 	}
@@ -1785,6 +1786,7 @@ static struct sk_buff *__skb_clone(struct sk_buff *n, struct sk_buff *skb)
 	C(data);
 	C(truesize);
 	refcount_set(&n->users, 1);
+	skb_init_inband(n);
 
 	atomic_inc(&(skb_shinfo(skb)->dataref));
 	skb->cloned = 1;
@@ -2510,6 +2512,7 @@ int pskb_expand_head(struct sk_buff *skb, int nhead, int ntail,
 	skb->hdr_len  = 0;
 	skb->nohdr    = 0;
 	atomic_set(&skb_shinfo(skb)->dataref, 1);
+	skb_init_inband(skb);
 
 	skb_metadata_clear(skb);
 
@@ -6894,6 +6897,7 @@ static int pskb_carve_inside_header(struct sk_buff *skb, const u32 off,
 	skb->hdr_len = 0;
 	skb->nohdr = 0;
 	atomic_set(&skb_shinfo(skb)->dataref, 1);
+	skb_init_inband(skb);
 
 	return 0;
 }
@@ -7030,6 +7034,7 @@ static int pskb_carve_inside_nonlinear(struct sk_buff *skb, const u32 off,
 	skb->len -= off;
 	skb->data_len = skb->len;
 	atomic_set(&skb_shinfo(skb)->dataref, 1);
+	skb_init_inband(skb);
 
 	return 0;
 }
