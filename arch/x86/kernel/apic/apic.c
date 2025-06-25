@@ -2220,7 +2220,7 @@ DEFINE_IDTENTRY_SYSVEC(sysvec_error_interrupt)
 	if (lapic_get_maxlvt() > 3)	/* Due to the Pentium erratum 3AP. */
 		apic_write(APIC_ESR, 0);
 	v = apic_read(APIC_ESR);
-	apic_eoi();
+	__apic_eoi();
 	atomic_inc(&irq_err_count);
 
 	apic_pr_debug("APIC error on CPU%d: %02x", smp_processor_id(), v);
