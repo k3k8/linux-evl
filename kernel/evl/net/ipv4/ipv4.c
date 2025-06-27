@@ -239,7 +239,8 @@ void __evl_net_ipv4_gc(struct evl_net_frag_tdir *ftdir)
  *		must be enabled as an oob port.
  * @addr	IPv4 address of the peer to solicit.
  * @flags	Operation flags. EVL_NEIGH_PERMANENT locks the ARP entry
- *		in the in-band cache.
+ *		in the in-band cache. EVL_NEIGH_MAYROUTE allows gateways
+ *              on the path to destination.
  *
  * Returns zero on success.
  */
@@ -252,11 +253,12 @@ int evl_net_ipv4_solicit(struct net *net,
 	struct rtable *rt;
 	__be32 ipaddr;
 	long ret = 0;
+	u8 tos;
 
 	if (addr->sa_family != AF_INET)
 		return -EAFNOSUPPORT;
 
-	if (flags & ~EVL_NEIGH_PERMANENT)
+	if (flags & ~(EVL_NEIGH_PERMANENT|EVL_NEIGH_MAYROUTE))
 		return -EINVAL;
 
 	ipaddr = ((struct sockaddr_in *)addr)->sin_addr.s_addr;
@@ -267,7 +269,8 @@ int evl_net_ipv4_solicit(struct net *net,
 	 * the routing data, which we then index into our oob route
 	 * cache.
 	 */
-	rt = ip_route_output(net, ipaddr, INADDR_ANY, 0,
+	tos = flags & EVL_NEIGH_MAYROUTE ? 0 : RTO_ONLINK;
+	rt = ip_route_output(net, ipaddr, INADDR_ANY, tos,
 			dev ? dev->ifindex : 0);
 	if (IS_ERR(rt))
 		return PTR_ERR(rt);
