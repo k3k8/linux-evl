@@ -12403,7 +12403,7 @@ static int __init net_dev_init(void)
 #endif
 #ifdef CONFIG_NET_OOB
 		INIT_LIST_HEAD(&sd->inband_rx_list);
-		init_irq_work(&sd->inband_rx_work, kick_rx_inband);
+		sd->inband_rx_work = IRQ_WORK_INIT_HARD(kick_rx_inband);
 #endif
 		INIT_CSD(&sd->defer_csd, trigger_rx_softirq, sd);
 		spin_lock_init(&sd->defer_lock);
