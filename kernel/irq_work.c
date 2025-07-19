@@ -81,11 +81,7 @@ void __weak irq_local_work_raise(void)
 	arch_irq_work_raise();
 }
 
-/* Enqueue on current CPU, work must already be claimed and preempt
-   disabled.  Dovetail: there is the assumption by oob callers that
-   any work set pending on the local CPU is going to be handled
-   immediately on return to inband mode, therefore rt_lazy_work only
-   applies to inband callers. */
+/* Enqueue on current CPU, work must already be claimed and preempt disabled */
 static void __irq_work_queue_local(struct irq_work *work)
 {
 	struct llist_head *list;
@@ -97,7 +93,6 @@ static void __irq_work_queue_local(struct irq_work *work)
 	if (work_flags & IRQ_WORK_LAZY)
 		lazy_work = true;
 	else if (IS_ENABLED(CONFIG_PREEMPT_RT) &&
-		 running_inband() &&
 		 !(work_flags & IRQ_WORK_HARD_IRQ))
 		rt_lazy_work = true;
 
