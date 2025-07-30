@@ -68,7 +68,7 @@ static void bcm7120_l2_intc_irq_handle(struct irq_desc *desc)
 		int hwirq;
 
 		gc = irq_get_domain_generic_chip(b->domain, base);
-		scoped_guard (raw_spinlock, &gc->lock) {
+		scoped_guard (hard_spinlock, &gc->lock) {
 			pending = irq_reg_readl(gc, b->stat_offset[idx]) & gc->mask_cache &
 				data->irq_map_mask[idx];
 		}
