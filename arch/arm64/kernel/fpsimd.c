@@ -2183,7 +2183,7 @@ void fpsimd_suspend_inband(void)
 	 */
 	if (test_thread_flag(TIF_KERNEL_FPSTATE)) {
 		fpsimd_save_state(kfpu);
-		set_thread_flag(TIF_KERNEL_FP_PREEMPTED);
+		set_thread_local_flags(_TLF_KERNEL_FPU_PREEMPTED);
 	}
 }
 
@@ -2191,8 +2191,11 @@ void fpsimd_resume_inband(void)
 {
 	struct user_fpsimd_state *kfpu = this_cpu_ptr(&in_kernel_fpstate);
 
-	if (test_and_clear_thread_flag(TIF_KERNEL_FP_PREEMPTED))
+	if (test_thread_local_flags(_TLF_KERNEL_FPU_PREEMPTED)) {
 		fpsimd_load_state(kfpu);
+		clear_thread_local_flags(_TLF_KERNEL_FPU_PREEMPTED);
+	}
+
 }
 
 #endif
