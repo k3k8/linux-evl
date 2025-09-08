@@ -846,15 +846,33 @@ static void cond_unmask_irq(struct irq_desc *desc)
  */
 void handle_level_irq(struct irq_desc *desc)
 {
-	guard(hybrid_spinlock)(&desc->lock);
-	mask_ack_irq(desc);
+	int flow;
 
-	if (!irq_can_handle(desc))
+	guard(hybrid_spinlock)(&desc->lock);
+
+	flow = get_flow_step(desc);
+	if (may_start_flow(flow)) {
+		mask_ack_irq(desc);
+
+		if (!irq_can_handle(desc))
+			return;
+	}
+
+	if (should_feed_pipeline(desc, flow)) {
+		if (handle_oob_irq(desc))
+			goto out_unmask;
 		return;
+	}
+
+	if (flow == IRQ_FLOW_FORWARD) {
+		forward_irq_event(desc);
+		return;
+	}
 
 	kstat_incr_irqs_this_cpu(desc);
 	handle_irq_event(desc);
 
+out_unmask:
 	cond_unmask_irq(desc);
 }
 EXPORT_SYMBOL_GPL(handle_level_irq);
