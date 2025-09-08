@@ -18,24 +18,14 @@ extern void fpu_flush_thread(void);
 
 #ifdef CONFIG_DOVETAIL
 
-static inline void oob_fpu_set_preempt(struct fpu *fpu)
+static inline bool oob_fpu_preempted(struct thread_info *old_ti)
 {
-	fpu->preempted = true;
-}
-
-static inline void oob_fpu_clear_preempt(struct fpu *fpu)
-{
-	fpu->preempted = false;
-}
-
-static inline bool oob_fpu_preempted(struct fpu *old_fpu)
-{
-	return old_fpu->preempted;
+	return test_ti_local_flags(old_ti, _TLF_KERNEL_FPU_PREEMPTED);
 }
 
 #else
 
-static inline bool oob_fpu_preempted(struct fpu *old_fpu)
+static inline bool oob_fpu_preempted(struct thread_info *old_ti)
 {
 	return false;
 }
@@ -60,9 +50,10 @@ static inline void switch_fpu(struct task_struct *old, int cpu)
 {
 	if (!test_tsk_thread_flag(old, TIF_NEED_FPU_LOAD) &&
 		cpu_feature_enabled(X86_FEATURE_FPU)) {
+		struct thread_info *old_ti = task_thread_info(old);
 		struct fpu *old_fpu = x86_task_fpu(old);
 		if (!(old->flags & (PF_KTHREAD | PF_USER_WORKER)) &&
-			!oob_fpu_preempted(old_fpu)) {
+			!oob_fpu_preempted(old_ti)) {
 			set_tsk_thread_flag(old, TIF_NEED_FPU_LOAD);
 			save_fpregs_to_fpstate(old_fpu);
 			/*
