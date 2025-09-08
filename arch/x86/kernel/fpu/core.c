@@ -1072,7 +1072,6 @@ static int fpu__drop_kernel_fpstate(unsigned int cpu)
 void fpu__suspend_inband(void)
 {
 	struct fpu *kfpu = this_cpu_read(in_kernel_fpstate);
-	struct task_struct *tsk = current;
 
 	/*
 	 * If kernel_fpu_allowed is false, we are dealing with the
@@ -1082,23 +1081,21 @@ void fpu__suspend_inband(void)
 	if (!this_cpu_read(kernel_fpu_allowed)) {
 		save_fpregs_to_fpstate(kfpu);
 		__cpu_invalidate_fpregs_state();
-		oob_fpu_set_preempt(x86_task_fpu(tsk));
+		set_thread_local_flags(_TLF_KERNEL_FPU_PREEMPTED);
 	}
 }
 
 void fpu__resume_inband(void)
 {
 	struct fpu *kfpu = this_cpu_read(in_kernel_fpstate);
-	struct task_struct *tsk = current;
 
-	if (tsk->flags & PF_KTHREAD)
-		return;
-
-	if (oob_fpu_preempted(x86_task_fpu(tsk))) {
+	if (test_thread_local_flags(_TLF_KERNEL_FPU_PREEMPTED)) {
 		restore_fpregs_from_fpstate(kfpu->fpstate, XFEATURE_MASK_FPSTATE);
 		__cpu_invalidate_fpregs_state();
-		oob_fpu_clear_preempt(x86_task_fpu(tsk));
+		clear_thread_local_flags(_TLF_KERNEL_FPU_PREEMPTED);
 	} else {
+		if (current->flags & PF_KTHREAD)
+			return;
 		if (test_thread_flag(TIF_NEED_FPU_LOAD))
 			switch_fpu_return();
 	}
