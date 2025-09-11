@@ -20,12 +20,12 @@ extern void fpu_flush_thread(void);
 
 static inline bool oob_fpu_preempted(struct thread_info *old_ti)
 {
-	return test_thread_local_flags(_TLF_KERNEL_FPU_PREEMPTED);
+	return test_ti_local_flags(old_ti, _TLF_KERNEL_FPU_PREEMPTED);
 }
 
 #else
 
-static inline bool oob_fpu_preempted(struct fpu *old_fpu)
+static inline bool oob_fpu_preempted(struct thread_info *old_ti)
 {
 	return false;
 }
