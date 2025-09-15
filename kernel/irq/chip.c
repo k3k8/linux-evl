@@ -649,6 +649,33 @@ static bool irq_wait_on_inprogress(struct irq_desc *desc)
 	return false;
 }
 
+#ifdef CONFIG_IRQ_PIPELINE
+static bool irq_active_on_this_cpu(struct irq_desc *desc)
+{
+	struct irq_data *data = &desc->irq_data;
+	const struct cpumask *aff;
+
+	/* desc marked as in progress, no other CPUs on !SMP */
+	if (!IS_ENABLED(CONFIG_SMP))
+		return true;
+
+	/* The below works only for single target interrupts */
+	if (!irqd_is_single_target(data) || desc->handle_irq != handle_edge_irq)
+		return false;
+
+	aff = irq_data_get_effective_affinity_mask(data);
+	if (cpumask_first(aff) != smp_processor_id())
+		return false;
+
+	return true;
+}
+#else
+static inline bool irq_active_on_this_cpu(struct irq_desc *desc)
+{
+	return false;
+}
+#endif
+
 static bool irq_can_handle_pm(struct irq_desc *desc)
 {
 	struct irq_data *irqd = &desc->irq_data;
@@ -679,6 +706,8 @@ static bool irq_can_handle_pm(struct irq_desc *desc)
 	if (irqs_pipelined()) {
 		WARN_ON_ONCE(irq_pipeline_debug() && !in_pipeline());
 		if (irqd_is_wakeup_armed(irqd))
+			return true;
+		if (irq_active_on_this_cpu(desc))
 			return true;
 	} else if (unlikely(irqd_is_wakeup_armed(irqd))) {
 		irq_pm_handle_wakeup(desc);
