@@ -605,7 +605,7 @@ static struct sk_buff *e1000e_alloc_rx_skb(struct e1000_adapter *adapter,
 
 	skb = napi_build_skb(page_address(page), adapter->oob_rx_size);
 	if (unlikely(!skb)) {
-		page_pool_return_skb_page(page);
+		napi_pp_put_page(page_to_netmem(page));
 		return NULL;
 	}
 
