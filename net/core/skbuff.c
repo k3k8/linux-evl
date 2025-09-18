@@ -1176,7 +1176,7 @@ struct page_pool *napi_pp_get_pool(netmem_ref netmem)
 	 * and page_is_pfmemalloc() is checked in __page_pool_put_page()
 	 * to avoid recycling the pfmemalloc page.
 	 */
-	if (unlikely(!is_pp_netmem(netmem)))
+	if (unlikely(!netmem_is_pp(netmem)))
 		return NULL;
 
 	return netmem_get_pp(netmem);
