@@ -2167,13 +2167,9 @@ void __efi_fpsimd_end(void)
 static int fpsimd_cpu_pm_notifier(struct notifier_block *self,
 				  unsigned long cmd, void *v)
 {
-	unsigned long flags;
-
 	switch (cmd) {
 	case CPU_PM_ENTER:
-		flags = hard_cond_local_irq_save();
 		fpsimd_save_and_flush_cpu_state();
-		hard_cond_local_irq_restore(flags);
 		break;
 	case CPU_PM_EXIT:
 		break;
