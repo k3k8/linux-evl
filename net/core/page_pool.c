@@ -642,7 +642,7 @@ static int page_pool_init_cache(struct page_pool *pool)
 		for (i = 0; i < nr_pages; i++) {
 			netmem = pool->alloc.cache[i];
 			if ((pp_flags & PP_FLAG_DMA_MAP) &&
-				unlikely(!page_pool_dma_map(pool, netmem))) {
+			    unlikely(!page_pool_dma_map(pool, netmem, GFP_KERNEL))) {
 				nr_pages = i;
 				goto fail;
 			}
