@@ -574,14 +574,14 @@ int irq_setup_affinity(struct irq_desc *desc)
 	struct cpumask *set = irq_default_affinity;
 	int node = irq_desc_get_node(desc);
 
-	static DEFINE_RAW_SPINLOCK(mask_lock);
+	static DEFINE_HYBRID_SPINLOCK(mask_lock);
 	static struct cpumask mask;
 
 	/* Excludes PER_CPU and NO_BALANCE interrupts */
 	if (!__irq_can_set_affinity(desc))
 		return 0;
 
-	guard(raw_spinlock)(&mask_lock);
+	guard(hybrid_spinlock)(&mask_lock);
 	/*
 	 * Preserve the managed affinity setting and a userspace affinity
 	 * setup, but make sure that one of the targets is online.
