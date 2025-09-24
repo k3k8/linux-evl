@@ -172,11 +172,11 @@ typedef struct hard_spinlock {
 	struct phony_lockdep_map dep_map;
 } hard_spinlock_t;
 
-#define DEFINE_MUTABLE_SPINLOCK(x)	hybrid_spinlock_t x = {	\
+#define DEFINE_HYBRID_SPINLOCK(x)	hybrid_spinlock_t x = {	\
 		.rlock = __RAW_SPIN_LOCK_UNLOCKED(x),			\
 	}
 
-#define DECLARE_MUTABLE_SPINLOCK(x)	hybrid_spinlock_t x
+#define DECLARE_HYBRID_SPINLOCK(x)	hybrid_spinlock_t x
 
 typedef struct hybrid_spinlock {
 	/* XXX: offset_of(struct hybrid_spinlock, rlock) == 0 */
@@ -207,9 +207,9 @@ typedef raw_spinlock_t hybrid_spinlock_t;
 
 #define DECLARE_HARD_SPINLOCK(x)	raw_spinlock_t x
 
-#define DEFINE_MUTABLE_SPINLOCK(x)	DEFINE_RAW_SPINLOCK(x)
+#define DEFINE_HYBRID_SPINLOCK(x)	DEFINE_RAW_SPINLOCK(x)
 
-#define DECLARE_MUTABLE_SPINLOCK(x)	raw_spinlock_t x
+#define DECLARE_HYBRID_SPINLOCK(x)	raw_spinlock_t x
 
 #define __RAWLOCK(x) (x)
 
