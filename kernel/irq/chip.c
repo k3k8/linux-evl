@@ -516,7 +516,7 @@ enum {
 
 static inline bool may_start_flow(int flow)
 {
-	return flow != IRQ_FLOW_REPLAY && flow != IRQ_FLOW_FORWARD;
+	return flow == IRQ_FLOW_START;
 }
 
 void irq_clear_deferral(struct irq_desc *desc)
