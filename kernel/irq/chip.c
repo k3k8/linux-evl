@@ -665,15 +665,13 @@ static inline bool should_feed_pipeline(struct irq_desc *desc, int state)
 	switch (state) {
 	case IRQ_FLOW_REPLAY:	/* Deferred to in-band. */
 		irq_clear_deferral(desc);
-		break;
+		return false;
 	case IRQ_FLOW_FORWARD:	/* Handled oob, forwarded in-band. */
 		irq_clear_forward(desc);
-		break;
+		return false;
 	default:
 		return true;
 	}
-
-	return false;
 }
 
 #ifdef CONFIG_IRQ_PIPELINE
