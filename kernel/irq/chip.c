@@ -578,7 +578,7 @@ static irqreturn_t forward_irq_event(struct irq_desc *desc)
  *   IRQ_FLOW_REPLAY since only the oob handler may request
  *   forwarding.
  */
-static inline unsigned int get_flow_step(struct irq_desc *desc)
+static inline int get_flow_step(struct irq_desc *desc)
 {
 	if (likely(!irqs_pipelined() || in_pipeline()))
 		return IRQ_FLOW_START;
