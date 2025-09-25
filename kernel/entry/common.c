@@ -284,6 +284,7 @@ noinstr void irqentry_exit(struct pt_regs *regs, irqentry_state_t state)
 		return;
 	}
 
+	instrumentation_begin();
 	synchronized = irqentry_syncstage(state);
 
 	if (irqexit_may_preempt_schedule(state, regs)) {
@@ -293,7 +294,6 @@ noinstr void irqentry_exit(struct pt_regs *regs, irqentry_state_t state)
 		 * and RCU as the return to user mode path.
 		 */
 		if (state.exit_rcu) {
-			instrumentation_begin();
 			/* Tell the tracer that IRET will enable interrupts */
 			trace_hardirqs_on_prepare();
 			lockdep_hardirqs_on_prepare();
@@ -303,7 +303,6 @@ noinstr void irqentry_exit(struct pt_regs *regs, irqentry_state_t state)
 			goto out;
 		}
 
-		instrumentation_begin();
 		if (IS_ENABLED(CONFIG_PREEMPTION))
 			irqentry_exit_cond_resched();
 
@@ -311,6 +310,7 @@ noinstr void irqentry_exit(struct pt_regs *regs, irqentry_state_t state)
 		trace_hardirqs_on();
 		instrumentation_end();
 	} else {
+		instrumentation_end();
 		/*
 		 * IRQ flags state is correct already. Just tell RCU if it
 		 * was not watching on entry.
