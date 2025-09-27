@@ -698,6 +698,11 @@ static bool irq_active_on_this_cpu(struct irq_desc *desc)
 
 	return true;
 }
+#else
+static inline bool irq_active_on_this_cpu(struct irq_desc *desc)
+{
+	return false;
+}
 #endif
 
 static bool irq_may_run(struct irq_desc *desc)
