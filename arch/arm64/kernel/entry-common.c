@@ -171,7 +171,6 @@ static __always_inline void __enter_from_user_mode(void)
 		lockdep_hardirqs_off(CALLER_ADDR0);
 		WARN_ON_ONCE(irq_pipeline_debug() && test_inband_stall());
 		CT_WARN_ON(ct_state() != CT_STATE_USER);
-		CT_WARN_ON(ct_state() != CONTEXT_USER);
 		stall_inband_nocheck();
 		user_exit_irqoff();
 		unstall_inband_nocheck();
