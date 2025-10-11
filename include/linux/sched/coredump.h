@@ -64,6 +64,7 @@ static inline int get_dumpable(struct mm_struct *mm)
  * on NFS restore
  */
 //#define MMF_EXE_FILE_CHANGED	18	/* see prctl_set_mm_exe_file() */
+#define MMF_DOVETAILED		18	/* mm belongs to a dovetailed process */
 
 #define MMF_HAS_UPROBES		19	/* has uprobes */
 #define MMF_RECALC_UPROBES	20	/* MMF_HAS_UPROBES can be wrong */
@@ -91,7 +92,6 @@ static inline int get_dumpable(struct mm_struct *mm)
 
 #define MMF_VM_MERGE_ANY	30
 #define MMF_VM_MERGE_ANY_MASK	(1 << MMF_VM_MERGE_ANY)
-#define MMF_DOVETAILED		31	/* mm belongs to a dovetailed process */
 
 #define MMF_TOPDOWN		31	/* mm searches top down by default */
 #define MMF_TOPDOWN_MASK	(1 << MMF_TOPDOWN)
