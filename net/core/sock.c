@@ -1115,6 +1115,7 @@ int sk_setsockopt(struct sock *sk, int level, int optname,
 		ret = sock_inband_setopt_redirect(sk, level, optname, optval, optlen);
 		if (ret != -ENOIOCTLCMD)
 			goto out;
+		ret = 0;
 	}
 
 	switch (optname) {
