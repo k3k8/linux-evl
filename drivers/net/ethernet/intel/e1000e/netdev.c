@@ -486,9 +486,6 @@ static int e1000e_enable_oob(struct net_device *netdev)
 	struct e1000_adapter *adapter = netdev_priv(netdev);
 	int n, ret;
 
-	napi_disable(&adapter->napi);
-	netif_tx_lock_bh(netdev);
-
 	switch (adapter->int_mode) {
 	case E1000E_INT_MODE_MSIX:
 		for (n = 0; n < 3; n++) { /* Switch RX, TX and OTHER irqs to oob mode. */
@@ -496,7 +493,7 @@ static int e1000e_enable_oob(struct net_device *netdev)
 			if (ret) {
 				while (--n >= 0)
 					irq_switch_oob(adapter->msix_entries[n].vector, false);
-				goto out;
+				return ret;
 			}
 		}
 		pr_info("%s: enabled out-of-band I/O mode (MSI-X)\n", netdev_name(netdev));
@@ -513,9 +510,6 @@ static int e1000e_enable_oob(struct net_device *netdev)
 		WARN_ON(1);
 		ret = -ENODEV;
 	}
-out:
-	netif_tx_unlock_bh(netdev);
-	napi_enable(&adapter->napi);
 
 	return ret;
 }
@@ -524,9 +518,6 @@ static void e1000e_disable_oob(struct net_device *netdev)
 {
 	struct e1000_adapter *adapter = netdev_priv(netdev);
 	int n;
-
-	napi_disable(&adapter->napi);
-	netif_tx_lock_bh(netdev);
 
 	if (adapter->int_mode == E1000E_INT_MODE_MSIX) {
 		for (n = 0; n < 3; n++)
@@ -538,9 +529,6 @@ static void e1000e_disable_oob(struct net_device *netdev)
 			netdev_name(netdev),
 			adapter->int_mode == E1000E_INT_MODE_MSI ? "MSI" : "legacy-int");
 	}
-
-	netif_tx_unlock_bh(netdev);
-	napi_enable(&adapter->napi);
 }
 
 static int e1000e_init_ring_oob(struct e1000_ring *ring)
