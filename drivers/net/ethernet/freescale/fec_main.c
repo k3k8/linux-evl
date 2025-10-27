@@ -327,27 +327,20 @@ static int fec_enet_get_irq_cnt(struct platform_device *pdev);
 static int fec_enet_enable_oob(struct net_device *ndev)
 {
 	struct fec_enet_private *fep = netdev_priv(ndev);
-	int nr_irqs = fec_enet_get_irq_cnt(fep->pdev), n, ret = 0;
-
-	napi_disable(&fep->napi);
-	netif_tx_lock_bh(ndev);
+	int nr_irqs = fec_enet_get_irq_cnt(fep->pdev), n, ret;
 
 	for (n = 0; n < nr_irqs; n++) {
 		ret = irq_switch_oob(fep->irq[n], true);
 		if (ret) {
 			while (--n > 0)
 				irq_switch_oob(fep->irq[n], false);
-			break;
+			return ret;
 		}
 	}
 
-	netif_tx_unlock_bh(ndev);
-	napi_enable(&fep->napi);
+	pr_info("%s: enabled out-of-band I/O mode\n", netdev_name(ndev));
 
-	if (!ret)
-		pr_info("%s: enabled out-of-band I/O mode\n", netdev_name(ndev));
-
-	return ret;
+	return 0;
 }
 
 static void fec_enet_disable_oob(struct net_device *ndev)
@@ -355,14 +348,8 @@ static void fec_enet_disable_oob(struct net_device *ndev)
 	struct fec_enet_private *fep = netdev_priv(ndev);
 	int nr_irqs = fec_enet_get_irq_cnt(fep->pdev), n;
 
-	napi_disable(&fep->napi);
-	netif_tx_lock_bh(ndev);
-
 	for (n = 0; n < nr_irqs; n++)
 		irq_switch_oob(fep->irq[n], false);
-
-	netif_tx_unlock_bh(ndev);
-	napi_enable(&fep->napi);
 
 	pr_info("%s: disabled out-of-band I/O mode\n", netdev_name(ndev));
 }
