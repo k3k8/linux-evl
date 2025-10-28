@@ -4419,6 +4419,7 @@ static inline bool netif_oob_port(struct net_device *dev)
 
 static inline void netif_enable_oob_port(struct net_device *dev)
 {
+	smp_mb__before_atomic();
 	set_bit(__LINK_STATE_OOB_PORT, &dev->state);
 }
 
