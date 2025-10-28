@@ -796,6 +796,14 @@ static void igb_disable_oob(struct net_device *netdev)
 	}
 }
 
+static void igb_destroy_oob_pool(struct igb_ring *rx_ring)
+{
+	if (rx_ring->rx_oob_pool) {
+		page_pool_destroy(rx_ring->rx_oob_pool);
+		rx_ring->rx_oob_pool = NULL;
+	}
+}
+
 static void igb_create_oob_pool(struct igb_ring *ring)
 {
 	struct igb_adapter *adapter = netdev_priv(ring->netdev);
@@ -809,7 +817,10 @@ static void igb_create_oob_pool(struct igb_ring *ring)
 		.offset = 0,
 		.max_len = igb_rx_pg_size(ring),
 	};
-	struct page_pool *rx_oob_pool = page_pool_create(&params);
+	struct page_pool *rx_oob_pool;
+
+	igb_destroy_oob_pool(ring);
+	rx_oob_pool = page_pool_create(&params);
 
 	/*
 	 * On error allocating the oob pool, we can still operate in
@@ -819,14 +830,6 @@ static void igb_create_oob_pool(struct igb_ring *ring)
 		return;
 
 	ring->rx_oob_pool = rx_oob_pool;
-}
-
-static void igb_destroy_oob_pool(struct igb_ring *rx_ring)
-{
-	if (rx_ring->rx_oob_pool) {
-		page_pool_destroy(rx_ring->rx_oob_pool);
-		rx_ring->rx_oob_pool = NULL;
-	}
 }
 
 static struct page *igb_alloc_rx_page(struct igb_ring *rx_ring)
