@@ -1955,7 +1955,7 @@ void fpsimd_save_and_flush_cpu_state(void)
 	WARN_ON(preemptible());
 	flags = hard_local_irq_save();
 	__get_cpu_fpsimd_context();
-	fpsimd_save();
+	__fpsimd_save();
 	fpsimd_flush_cpu_state();
 	__put_cpu_fpsimd_context();
 	hard_local_irq_restore(flags);
