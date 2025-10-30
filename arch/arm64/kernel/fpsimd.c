@@ -1954,7 +1954,7 @@ void fpsimd_save_and_flush_cpu_state(void)
 		return;
 	WARN_ON(preemptible());
 	get_cpu_fpsimd_context(flags);
-	fpsimd_save();
+	__fpsimd_save();
 	fpsimd_flush_cpu_state();
 	put_cpu_fpsimd_context(flags);
 }
