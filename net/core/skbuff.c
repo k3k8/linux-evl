@@ -593,6 +593,9 @@ EXPORT_SYMBOL(napi_build_skb);
 unsigned int sysctl_max_oob_skb __read_mostly = 4096;
 EXPORT_SYMBOL(sysctl_max_oob_skb);
 
+unsigned int sysctl_free_oob_skb;
+EXPORT_SYMBOL(sysctl_free_oob_skb);
+
 __weak void free_skb_oob(struct sk_buff *skb)
 { }
 
@@ -640,6 +643,7 @@ static void init_oob_cache(void)
 		BUG_ON(!skb);
 		list_add(&skb->list, &c->pool);
 	}
+	WRITE_ONCE(sysctl_free_oob_skb, max_skbs);
 }
 
 struct sk_buff *get_oob_skb(void)
@@ -647,11 +651,14 @@ struct sk_buff *get_oob_skb(void)
 	struct skbuff_oob_pool *c = &skbuff_oob_pool;
 	struct sk_buff *skb = NULL;
 	unsigned long flags;
+	unsigned int free;
 
 	raw_spin_lock_irqsave(&c->lock, flags);
 	if (!list_empty(&c->pool)) {
 		skb = list_first_entry(&c->pool, struct sk_buff, list);
 		list_del(&skb->list);
+		free = READ_ONCE(sysctl_free_oob_skb) - 1;
+		WRITE_ONCE(sysctl_free_oob_skb, free);
 		raw_spin_unlock_irqrestore(&c->lock, flags);
 		memset(skb, 0, offsetof(struct sk_buff, tail));
 		skb_mark_oob(skb);
@@ -668,9 +675,12 @@ void put_oob_skb(struct sk_buff *skb)
 {
 	struct skbuff_oob_pool *c = &skbuff_oob_pool;
 	unsigned long flags;
+	unsigned int free;
 
 	raw_spin_lock_irqsave(&c->lock, flags);
 	list_add(&skb->list, &c->pool);
+	free = READ_ONCE(sysctl_free_oob_skb) + 1;
+	WRITE_ONCE(sysctl_free_oob_skb, free);
 	raw_spin_unlock_irqrestore(&c->lock, flags);
 }
 EXPORT_SYMBOL(put_oob_skb);
