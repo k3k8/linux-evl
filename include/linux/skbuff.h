@@ -5155,6 +5155,8 @@ static inline bool skb_pp_recycle(struct sk_buff *skb, void *data)
 
 extern unsigned int sysctl_max_oob_skb;
 
+extern unsigned int sysctl_free_oob_skb;
+
 struct skbuff_oob_pool {
 	struct list_head pool;
 	hard_spinlock_t lock;
