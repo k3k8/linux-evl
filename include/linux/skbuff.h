@@ -5307,6 +5307,8 @@ ssize_t skb_splice_from_iter(struct sk_buff *skb, struct iov_iter *iter,
 
 extern unsigned int sysctl_max_oob_skb;
 
+extern unsigned int sysctl_free_oob_skb;
+
 struct skbuff_oob_pool {
 	struct list_head pool;
 	hard_spinlock_t lock;
