@@ -639,9 +639,7 @@ static struct ctl_table net_core_table[] = {
 		.data		= &sysctl_max_oob_skb,
 		.maxlen		= sizeof(unsigned int),
 		.mode		= 0444,
-		.proc_handler	= proc_dointvec_minmax,
-		.extra1		= SYSCTL_ONE_HUNDRED,
-		.extra2		= SYSCTL_INT_MAX,
+		.proc_handler	= proc_dointvec,
 	},
 #endif
 };
