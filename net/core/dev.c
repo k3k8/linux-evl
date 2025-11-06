@@ -7801,7 +7801,8 @@ static int __napi_poll(struct napi_struct *n, bool *repoll)
 		work = n->poll(n, weight);
 		trace_napi_poll(n, work, weight);
 
-		xdp_do_check_flushed(n);
+		if (running_inband())
+			xdp_do_check_flushed(n);
 	}
 
 	if (unlikely(work > weight))
