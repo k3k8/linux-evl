@@ -697,6 +697,32 @@ dma_addr_t skb_oob_dma_addr(const struct sk_buff *skb)
 }
 EXPORT_SYMBOL(skb_oob_dma_addr);
 
+/**
+ *	skb_oob_clone - Shallow clone a buffer into an oob buffer.
+ *
+ *	Allocate and build a clone of @skb, referring to the same
+ *	data. The clone is allocated from the out-out-band pool. @skb
+ *	may or may not be an oob buffer.
+ *
+ *	@skb the packet to clone.
+ *
+ *      CAUTION: fragments are not cloned.
+ */
+struct sk_buff *skb_oob_clone(struct sk_buff *skb)
+{
+	struct sk_buff *clone;
+
+	clone = get_oob_skb();
+	if (!clone)
+		return NULL;
+
+	clone->head = NULL;	/* So we can morph safely. */
+	skb_morph(clone, skb);
+	skb_mark_oob(clone);	/* Morphing lost the marker, re-add it. */
+
+	return clone;
+}
+
 #else  /* !CONFIG_NET_OOB */
 
 static inline void init_oob_cache(void)

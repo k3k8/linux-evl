@@ -5479,6 +5479,8 @@ static inline bool __skb_oob_free_head(struct sk_buff *skb)
 	return false;
 }
 
+struct sk_buff *skb_oob_clone(struct sk_buff *skb);
+
 #else  /* !CONFIG_NET_OOB */
 
 static inline void skb_init_inband(struct sk_buff *skb)
