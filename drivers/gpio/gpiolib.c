@@ -3840,7 +3840,7 @@ int gpiod_get_array_value_oob(struct gpio_chip *gc,
 		hwgpio = gpio_chip_hwgpio(desc);
 		value = test_bit(hwgpio, bits);
 		/* We assume non-raw mode. */
-		if (test_bit(FLAG_ACTIVE_LOW, &desc->flags))
+		if (test_bit(GPIOD_FLAG_ACTIVE_LOW, &desc->flags))
 			value = !value;
 		__assign_bit(n, value_bitmap, value);
 		trace_gpio_value(desc_to_gpio(desc), 1, value);
@@ -3867,7 +3867,7 @@ int gpiod_set_array_value_oob(struct gpio_chip *gc,
 		__set_bit(hwgpio, mask);
 		/* We assume non-raw mode. */
 		value = test_bit(n, value_bitmap);
-		if (test_bit(FLAG_ACTIVE_LOW, &desc->flags))
+		if (test_bit(GPIOD_FLAG_ACTIVE_LOW, &desc->flags))
 			value = !value;
 		if (value)
 			__set_bit(hwgpio, bits);
