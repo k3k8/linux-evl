@@ -107,7 +107,6 @@ struct thread_info {
 #define TIF_LAZY_MMU_UPDATES	27	/* task is updating the mmu lazily */
 #define TIF_ADDR32		28	/* 32-bit address space on 64 bits */
 #define TIF_MAYDAY		29	/* emergency trap pending */
-#define TIF_RETUSER		30	/* INBAND_TASK_RETUSER is pending */
 
 #define _TIF_SSBD		BIT(TIF_SSBD)
 #define _TIF_SPEC_IB		BIT(TIF_SPEC_IB)
@@ -123,7 +122,6 @@ struct thread_info {
 #define _TIF_LAZY_MMU_UPDATES	BIT(TIF_LAZY_MMU_UPDATES)
 #define _TIF_ADDR32		BIT(TIF_ADDR32)
 #define _TIF_MAYDAY		BIT(TIF_MAYDAY)
-#define _TIF_RETUSER		BIT(TIF_RETUSER)
 
 /* flags to check in __switch_to() */
 #define _TIF_WORK_CTXSW_BASE					\
