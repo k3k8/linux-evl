@@ -248,16 +248,22 @@ extern void warn_bogus_irq_restore(void);
 #endif /* CONFIG_TRACE_IRQFLAGS */
 
 #ifdef CONFIG_IRQ_PIPELINE
-#define local_irq_enable_full()			\
-	do {					\
-		hard_local_irq_enable();	\
-		local_irq_enable();		\
+#define local_irq_enable_full()					\
+	do {							\
+		if (running_inband() && raw_irqs_disabled()) {	\
+			trace_hardirqs_on();			\
+			unstall_inband_nocheck();		\
+		}						\
+		hard_local_irq_enable();			\
 	} while (0)
 
-#define local_irq_disable_full()		\
-	do {					\
-		hard_local_irq_disable();	\
-		local_irq_disable();		\
+#define local_irq_disable_full()				\
+	do {							\
+		hard_local_irq_disable();			\
+		if (running_inband() && !raw_irqs_disabled()) {	\
+			stall_inband_nocheck();			\
+			trace_hardirqs_off();			\
+		}						\
 	} while (0)
 
 #define local_irq_save_full(__flags)					\
