@@ -828,22 +828,19 @@ static const char *ipi_types[MAX_IPI] __tracepoint_string = {
 
 static void smp_cross_call(const struct cpumask *target, unsigned int ipinr);
 
-static unsigned int get_ipi_count(struct irq_desc *desc, unsigned int cpu);
+static unsigned int get_ipi_count(int ipi, unsigned int cpu);
 
 unsigned long irq_err_count;
 
 int arch_show_interrupts(struct seq_file *p, int prec)
 {
-	struct irq_desc *desc;
 	unsigned int cpu, i;
 
 	for (i = 0; i < MAX_IPI; i++) {
 		seq_printf(p, "%*s%u:%s", prec - 1, "IPI", i,
 			   prec >= 4 ? " " : "");
-		for_each_online_cpu(cpu) {
-			desc = get_ipi_desc(cpu, i);
-			seq_printf(p, "%10u ", get_ipi_count(desc, cpu));
-		}
+		for_each_online_cpu(cpu)
+			seq_printf(p, "%10u ", get_ipi_count(i, cpu));
 		seq_printf(p, "      %s\n", ipi_types[i]);
 	}
 
@@ -1090,11 +1087,9 @@ static void smp_cross_call(const struct cpumask *target, unsigned int ipinr)
 	__smp_cross_call(target, 0);
 }
 
-static unsigned int get_ipi_count(struct irq_desc *desc, unsigned int cpu)
+static unsigned int get_ipi_count(int ipi, unsigned int cpu)
 {
-	unsigned int irq = irq_desc_get_irq(desc);
-
-	return per_cpu(ipi_counts[irq - ipi_irq_base], cpu);
+	return per_cpu(ipi_counts, cpu)[ipi];
 }
 
 void irq_send_oob_ipi(unsigned int irq, const struct cpumask *cpumask)
@@ -1133,8 +1128,9 @@ static void smp_cross_call(const struct cpumask *target, unsigned int ipinr)
 	arm64_send_ipi(target, ipinr);
 }
 
-static unsigned int get_ipi_count(struct irq_desc *desc, unsigned int cpu)
+static unsigned int get_ipi_count(int ipi, unsigned int cpu)
 {
+  	struct irq_desc *desc = get_ipi_desc(cpu, ipi);
 	return irq_desc_kstat_cpu(desc, cpu);
 }
 
