@@ -46,6 +46,7 @@
 #include <linux/maple_tree.h>
 #include <linux/rw_hint.h>
 #include <linux/file_ref.h>
+#include <linux/irq_work.h>
 #include <linux/unicode.h>
 
 #include <asm/byteorder.h>
@@ -1298,7 +1299,10 @@ struct file {
 	file_ref_t			f_ref;
 	/* --- cacheline 3 boundary (192 bytes) --- */
 #ifdef CONFIG_DOVETAIL
+	/* a pointer to some extended context. */
 	void			       *f_oob_ctx;
+	/* for fput() deferral from oob to in-band. */
+	struct irq_work			f_irq_work;
 #endif
 } __randomize_layout
   __attribute__((aligned(4)));	/* lest something weird decides that 2 is OK */
