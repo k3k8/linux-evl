@@ -43,6 +43,7 @@
 #include <linux/cred.h>
 #include <linux/mnt_idmapping.h>
 #include <linux/slab.h>
+#include <linux/irq_work.h>
 
 #include <asm/byteorder.h>
 #include <uapi/linux/fs.h>
@@ -979,7 +980,10 @@ struct file {
 	errseq_t		f_wb_err;
 	errseq_t		f_sb_err; /* for syncfs */
 #ifdef CONFIG_DOVETAIL
-	void			*f_oob_ctx;
+	/* a pointer to some extended context. */
+	void			       *f_oob_ctx;
+	/* for fput() deferral from oob to in-band. */
+	struct irq_work			f_irq_work;
 #endif
 } __randomize_layout
   __attribute__((aligned(4)));	/* lest something weird decides that 2 is OK */
