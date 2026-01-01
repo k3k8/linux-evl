@@ -473,13 +473,34 @@ void flush_delayed_fput(void)
 }
 EXPORT_SYMBOL_GPL(flush_delayed_fput);
 
+
 static DECLARE_DELAYED_WORK(delayed_fput_work, delayed_fput);
+
+static void schedule_delayed_fput(struct file *file)
+{
+	if (llist_add(&file->f_llist, &delayed_fput_list))
+		schedule_delayed_work(&delayed_fput_work, 1);
+}
+
+#ifdef CONFIG_DOVETAIL
+static void ____fput_irq(struct irq_work *irq_work)
+{
+	schedule_delayed_fput(container_of(irq_work, struct file, f_irq_work));
+}
+#endif
 
 void fput(struct file *file)
 {
 	if (atomic_long_dec_and_test(&file->f_count)) {
 		struct task_struct *task = current;
 
+#ifdef CONFIG_DOVETAIL
+		if (running_oob()) {
+			init_irq_work(&file->f_irq_work, ____fput_irq);
+			irq_work_queue(&file->f_irq_work);
+			return;
+		}
+#endif
 		if (unlikely(!(file->f_mode & (FMODE_BACKING | FMODE_OPENED)))) {
 			file_free(file);
 			return;
@@ -495,8 +516,7 @@ void fput(struct file *file)
 			 */
 		}
 
-		if (llist_add(&file->f_llist, &delayed_fput_list))
-			schedule_delayed_work(&delayed_fput_work, 1);
+		schedule_delayed_fput(file);
 	}
 }
 
