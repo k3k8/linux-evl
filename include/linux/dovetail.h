@@ -220,15 +220,6 @@ static inline void dovetail_clear_ucall(void)
 		clear_thread_flag(TIF_RETUSER);
 }
 
-void install_inband_fd(unsigned int fd, struct file *file,
-		       struct files_struct *files);
-
-void uninstall_inband_fd(unsigned int fd, struct file *file,
-			 struct files_struct *files);
-
-void replace_inband_fd(unsigned int fd, struct file *file,
-		       struct files_struct *files);
-
 int __pipeline_syscall(struct pt_regs *regs);
 
 int handle_oob_syscall(struct pt_regs *regs);
@@ -330,18 +321,6 @@ static inline void dovetail_request_ucall(struct task_struct *task) { }
 static inline void dovetail_clear_ucall(void) { }
 
 static inline void inband_clock_was_set(void) { }
-
-static inline
-void install_inband_fd(unsigned int fd, struct file *file,
-		       struct files_struct *files) { }
-
-static inline
-void uninstall_inband_fd(unsigned int fd, struct file *file,
-			 struct files_struct *files) { }
-
-static inline
-void replace_inband_fd(unsigned int fd, struct file *file,
-		       struct files_struct *files) { }
 
 #define arch_dovetail_is_syscall(__tsk, __nr, __regs)	false
 
