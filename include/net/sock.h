@@ -63,6 +63,7 @@
 #include <linux/atomic.h>
 #include <linux/refcount.h>
 #include <linux/llist.h>
+#include <dovetail/sock.h>
 #include <net/dst.h>
 #include <net/checksum.h>
 #include <net/tcp_states.h>
@@ -568,9 +569,7 @@ struct sock {
 						  struct sk_buff *skb);
 	void                    (*sk_destruct)(struct sock *sk);
 	struct sock_reuseport __rcu	*sk_reuseport_cb;
-#ifdef CONFIG_NET_OOB
-	void			*sk_oob_ctx;
-#endif
+	struct oob_sock_state	sk_oob_state;
 #ifdef CONFIG_BPF_SYSCALL
 	struct bpf_local_storage __rcu	*sk_bpf_storage;
 #endif
@@ -1842,7 +1841,7 @@ static inline void skb_set_owner_edemux(struct sk_buff *skb, struct sock *sk)
 
 static inline bool sock_oob_capable(struct socket *sock)
 {
-	return sock && sock->sk && sock->sk->sk_oob_ctx;
+	return sock && sock->sk && sock->sk->sk_oob_state.data;
 }
 
 int sock_oob_attach(struct socket *sock);
@@ -1884,7 +1883,7 @@ int sock_inband_getopt_redirect(struct sock *sk,
 
 static inline void sock_oob_destruct(struct sock *sk)
 {
-	if (sk->sk_oob_ctx)
+	if (sk->sk_oob_state.data)
 		sock_oob_destroy(sk);
 }
 
