@@ -47,8 +47,8 @@
 #include <linux/maple_tree.h>
 #include <linux/rw_hint.h>
 #include <linux/file_ref.h>
-#include <linux/irq_work.h>
 #include <linux/unicode.h>
+#include <dovetail/fs.h>
 
 #include <asm/byteorder.h>
 #include <uapi/linux/fs.h>
@@ -1209,7 +1209,7 @@ static inline int ra_has_index(struct file_ra_state *ra, pgoff_t index)
  * @f_ra: file's readahead state
  * @f_freeptr: Pointer used by SLAB_TYPESAFE_BY_RCU file cache (don't touch.)
  * @f_ref: reference count
- * @f_oob_ctx: Dovetail: context information for oob-enabled files
+ * @f_oob_state: Dovetail: state information for oob-enabled files
  */
 struct file {
 	spinlock_t			f_lock;
@@ -1251,12 +1251,7 @@ struct file {
 	};
 	file_ref_t			f_ref;
 	/* --- cacheline 3 boundary (192 bytes) --- */
-#ifdef CONFIG_DOVETAIL
-	/* a pointer to some extended context. */
-	void			       *f_oob_ctx;
-	/* for fput() deferral from oob to in-band. */
-	struct irq_work			f_irq_work;
-#endif
+	struct oob_file_state		f_oob_state;
 } __randomize_layout
   __attribute__((aligned(4)));	/* lest something weird decides that 2 is OK */
 
