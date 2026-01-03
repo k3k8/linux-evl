@@ -45,7 +45,7 @@
 #include <linux/slab.h>
 #include <linux/maple_tree.h>
 #include <linux/rw_hint.h>
-#include <linux/irq_work.h>
+#include <dovetail/fs.h>
 
 #include <asm/byteorder.h>
 #include <uapi/linux/fs.h>
@@ -1030,6 +1030,7 @@ static inline int ra_has_index(struct file_ra_state *ra, pgoff_t index)
  * @f_llist: work queue entrypoint
  * @f_ra: file's readahead state
  * @f_freeptr: Pointer used by SLAB_TYPESAFE_BY_RCU file cache (don't touch.)
+ * @f_oob_state: Dovetail: state information for oob-enabled files
  */
 struct file {
 	atomic_long_t			f_count;
@@ -1068,12 +1069,7 @@ struct file {
 		freeptr_t		f_freeptr;
 	};
 	/* --- cacheline 3 boundary (192 bytes) --- */
-#ifdef CONFIG_DOVETAIL
-	/* a pointer to some extended context. */
-	void			       *f_oob_ctx;
-	/* for fput() deferral from oob to in-band. */
-	struct irq_work			f_irq_work;
-#endif
+	struct oob_file_state		f_oob_state;
 } __randomize_layout
   __attribute__((aligned(4)));	/* lest something weird decides that 2 is OK */
 
