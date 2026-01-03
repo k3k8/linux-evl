@@ -190,9 +190,7 @@ static int init_file(struct file *f, int flags, const struct cred *cred)
 	f->f_pos	= 0;
 	f->f_wb_err	= 0;
 	f->f_sb_err	= 0;
-#ifdef CONFIG_DOVETAIL
-	f->f_oob_ctx	= NULL;
-#endif
+	init_oob_fstate(&f->f_oob_state);
 
 	/*
 	 * We're SLAB_TYPESAFE_BY_RCU so initialize f_ref last. While
@@ -524,24 +522,24 @@ static void schedule_delayed_fput(struct file *file)
 		schedule_delayed_work(&delayed_fput_work, 1);
 }
 
-#ifdef CONFIG_DOVETAIL
-static void ____fput_irq(struct irq_work *irq_work)
+static inline void ____fput_irq(struct irq_work *irq_work)
 {
-	schedule_delayed_fput(container_of(irq_work, struct file, f_irq_work));
+	__schedule_inband_fput(irq_work);
 }
-#endif
 
 static void __fput_deferred(struct file *file)
 {
 	struct task_struct *task = current;
 
-#ifdef CONFIG_DOVETAIL
 	if (running_oob()) {
-		init_irq_work(&file->f_irq_work, ____fput_irq);
-		irq_work_queue(&file->f_irq_work);
+		/*
+		 * Dropping the last reference to an oob-enabled file
+		 * from the oob stage is a rare event enough not to
+		 * make the double trampoline a performance issue.
+		 */
+		schedule_inband_fput(&file->f_oob_state, ____fput_irq);
 		return;
 	}
-#endif
 
 	if (unlikely(!(file->f_mode & (FMODE_BACKING | FMODE_OPENED)))) {
 		file_free(file);
