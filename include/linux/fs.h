@@ -44,6 +44,7 @@
 #include <linux/mnt_idmapping.h>
 #include <linux/slab.h>
 #include <linux/irq_work.h>
+#include <dovetail/fs.h>
 
 #include <asm/byteorder.h>
 #include <uapi/linux/fs.h>
@@ -979,12 +980,7 @@ struct file {
 	struct address_space	*f_mapping;
 	errseq_t		f_wb_err;
 	errseq_t		f_sb_err; /* for syncfs */
-#ifdef CONFIG_DOVETAIL
-	/* a pointer to some extended context. */
-	void			       *f_oob_ctx;
-	/* for fput() deferral from oob to in-band. */
-	struct irq_work			f_irq_work;
-#endif
+	struct oob_file_state	f_oob_state;
 } __randomize_layout
   __attribute__((aligned(4)));	/* lest something weird decides that 2 is OK */
 
