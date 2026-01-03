@@ -1150,9 +1150,7 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 #endif
 	mm_init_uprobes_state(mm);
 	hugetlb_count_init(mm);
-#ifdef CONFIG_DOVETAIL
-	memset(&mm->oob_state, 0, sizeof(mm->oob_state));
-#endif
+	init_oob_mm_state(&mm->oob_state);
 
 	if (current->mm) {
 		mm->flags = current->mm->flags & MMF_INIT_MASK;
