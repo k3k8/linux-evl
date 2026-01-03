@@ -9,4 +9,7 @@
 struct oob_mm_state {
 };
 
+static inline void init_oob_mm_state(struct oob_mm_state *state)
+{ }
+
 #endif /* !_DOVETAIL_MM_INFO_H */
