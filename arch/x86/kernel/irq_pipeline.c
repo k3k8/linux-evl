@@ -143,7 +143,7 @@ static void do_sysvec_inband(struct irq_desc *desc, struct pt_regs *regs)
 	case IRQ_WORK_VECTOR:
 		run_sysvec_on_irqstack_cond(__sysvec_irq_work, regs);
 		break;
-#ifdef CONFIG_HAVE_KVM
+#if IS_ENABLED(CONFIG_KVM)
 	case POSTED_INTR_VECTOR:
 		run_sysvec_on_irqstack_cond(__sysvec_kvm_posted_intr_ipi,
 					regs);
