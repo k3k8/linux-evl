@@ -914,7 +914,7 @@ static inline void apic_move_irq(struct irq_data *irqd)
 {
 	if (irqd_is_setaffinity_pending(irqd) &&
 		!irqd_is_setaffinity_blocked(irqd)) {
-		init_irq_work(&irqd->move_work, apic_deferred_irq_move);
+		irqd->move_work = IRQ_WORK_INIT_HARD(apic_deferred_irq_move);
 		irq_work_queue(&irqd->move_work);
 	}
 }
