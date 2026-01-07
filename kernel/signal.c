@@ -2235,8 +2235,6 @@ static int ptrace_stop(int exit_code, int why, unsigned long message,
 		spin_lock_irq(&current->sighand->siglock);
 	}
 
-	inband_ptstop_notify();
-
 	/*
 	 * After this point ptrace_signal_wake_up or signal_wake_up
 	 * will clear TASK_TRACED if ptrace_unlink happens or a fatal
@@ -2318,10 +2316,10 @@ static int ptrace_stop(int exit_code, int why, unsigned long message,
 	read_unlock(&tasklist_lock);
 	cgroup_enter_frozen();
 	preempt_enable_no_resched();
+	inband_ptstop_notify();
 	schedule();
-	cgroup_leave_frozen(true);
-
 	inband_ptcont_notify();
+	cgroup_leave_frozen(true);
 
 	/*
 	 * We are back.  Now reacquire the siglock before touching
