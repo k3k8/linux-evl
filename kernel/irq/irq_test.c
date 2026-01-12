@@ -38,7 +38,7 @@ static struct irq_chip fake_irq_chip = {
 	.irq_mask       = noop,
 	.irq_unmask     = noop,
 	.irq_set_affinity = noop_affinity,
-	.flags          = IRQCHIP_SKIP_SET_WAKE,
+	.flags          = IRQCHIP_SKIP_SET_WAKE|IRQCHIP_PIPELINE_SAFE,
 };
 
 static int irq_test_setup_fake_irq(struct kunit *test, struct irq_affinity_desc *affd)
