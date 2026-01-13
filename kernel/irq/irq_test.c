@@ -145,7 +145,7 @@ static void irq_shutdown_depth_test(struct kunit *test)
 	disable_irq(virq);
 	KUNIT_EXPECT_EQ(test, desc->depth, 1);
 
-	scoped_guard(raw_spinlock_irqsave, &desc->lock)
+	scoped_guard(hybrid_spinlock_irqsave, &desc->lock)
 		irq_shutdown_and_deactivate(desc);
 
 	KUNIT_EXPECT_FALSE(test, irqd_is_activated(data));
