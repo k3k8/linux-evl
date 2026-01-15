@@ -168,6 +168,7 @@ int __weak sock_oob_bind(struct sock *sk, struct sockaddr_unsized *addr,
 {
 	return 0;
 }
+EXPORT_SYMBOL_GPL(sock_oob_bind);
 
 int __weak sock_oob_shutdown(struct sock *sk, int how)
 {
