@@ -842,6 +842,7 @@ static void noinstr el0_softstp(struct pt_regs *regs, unsigned long esr)
 		arm64_apply_bp_hardening();
 
 	arm64_enter_from_user_mode(regs);
+	mark_trap_entry(ARM64_TRAP_DEBUG, regs);
 	/*
 	 * After handling a breakpoint, we suspend the breakpoint
 	 * and use single-step to move to the next instruction.
@@ -852,6 +853,7 @@ static void noinstr el0_softstp(struct pt_regs *regs, unsigned long esr)
 	local_daif_restore(DAIF_PROCCTX);
 	if (!step_done)
 		do_el0_softstep(esr, regs);
+	mark_trap_exit(ARM64_TRAP_DEBUG, regs);
 	arm64_exit_to_user_mode(regs);
 }
 
@@ -871,8 +873,10 @@ static void noinstr el0_watchpt(struct pt_regs *regs, unsigned long esr)
 static void noinstr el0_brk64(struct pt_regs *regs, unsigned long esr)
 {
 	arm64_enter_from_user_mode(regs);
+	mark_trap_entry(ARM64_TRAP_DEBUG, regs);
 	local_daif_restore(DAIF_PROCCTX);
 	do_el0_brk64(esr, regs);
+	mark_trap_exit(ARM64_TRAP_DEBUG, regs);
 	arm64_exit_to_user_mode(regs);
 }
 
