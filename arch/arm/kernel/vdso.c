@@ -222,7 +222,8 @@ void arm_install_vdso(struct mm_struct *mm, unsigned long addr)
 	if (vdso_text_pagelist == NULL)
 		return;
 
-	if (vdso_install_private_mapping(addr, __VDSO_PRIV_PAGES * PAGE_SIZE))
+	if (__VDSO_PRIV_PAGES > 0 &&
+	    vdso_install_private_mapping(addr, __VDSO_PRIV_PAGES * PAGE_SIZE))
 		return;
 
 	if (IS_ERR(vdso_install_vvar_mapping(mm, addr + __VDSO_PRIV_PAGES * PAGE_SIZE)))
