@@ -178,9 +178,9 @@ static int rzg3s_thermal_read_calib(struct rzg3s_thermal_priv *priv)
 	return 0;
 }
 
-static void rzg3s_thermal_reset_deassert(void *data)
+static void rzg3s_thermal_reset_assert(void *data)
 {
-	reset_control_deassert(data);
+	reset_control_assert(data);
 }
 
 static void rzg3s_thermal_rem_hwmon_sysfs(void *data)
@@ -214,7 +214,7 @@ static int rzg3s_thermal_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	ret = devm_add_action_or_reset(dev, rzg3s_thermal_reset_deassert, priv->rstc);
+	ret = devm_add_action_or_reset(dev, rzg3s_thermal_reset_assert, priv->rstc);
 	if (ret)
 		return ret;
 
