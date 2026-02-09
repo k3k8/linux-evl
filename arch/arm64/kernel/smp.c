@@ -913,20 +913,27 @@ static void __noreturn ipi_cpu_crash_stop(unsigned int cpu, struct pt_regs *regs
 #endif
 }
 
-static void arm64_send_ipi(const cpumask_t *mask, unsigned int nr)
+struct ipi_index {
+	unsigned int sgi;
+};
+
+static inline struct ipi_index mkipi_inband(unsigned int ipi,
+					    const struct cpumask *target);
+
+static void arm64_send_ipi(const cpumask_t *mask, struct ipi_index ipi)
 {
 	unsigned int cpu;
 
 	if (!percpu_ipi_descs)
-		__ipi_send_mask(get_ipi_desc(0, nr), mask);
+		__ipi_send_mask(get_ipi_desc(0, ipi.sgi), mask);
 	else
 		for_each_cpu(cpu, mask)
-			__ipi_send_single(get_ipi_desc(cpu, nr), cpu);
+			__ipi_send_single(get_ipi_desc(cpu, ipi.sgi), cpu);
 }
 
 static void arm64_backtrace_ipi(cpumask_t *mask)
 {
-	arm64_send_ipi(mask, IPI_CPU_BACKTRACE);
+	arm64_send_ipi(mask, mkipi_inband(IPI_CPU_BACKTRACE, mask));
 }
 
 void arch_trigger_cpumask_backtrace(const cpumask_t *mask, int exclude_cpu)
@@ -1020,6 +1027,34 @@ static void do_handle_IPI(int ipinr)
 
 #ifdef CONFIG_IRQ_PIPELINE
 
+static DEFINE_PER_CPU(unsigned long, ipi_messages);
+
+static DEFINE_PER_CPU(unsigned int [MAX_IPI], ipi_counts);
+
+static inline struct ipi_index mkipi_inband(unsigned int ipi,
+					    const struct cpumask *target)
+{
+	unsigned int cpu;
+
+	WARN_ON(ipi >= MAX_IPI);
+
+	/* regular in-band IPI (multiplexed over SGI0). */
+	for_each_cpu(cpu, target)
+		set_bit(ipi, &per_cpu(ipi_messages, cpu));
+
+	/* Write barrier: Make sure ipi_message is set before raising the IPI */
+	wmb();
+
+	/* Multiplex inband IPIs via SGI0 */
+	return (struct ipi_index){ .sgi = 0 };
+}
+
+static inline struct ipi_index mkipi_oob(unsigned int ipi)
+{
+	WARN_ON(ipi < OOB_IPI_OFFSET || ipi > OOB_IPI_OFFSET + OOB_NR_IPI - 1);
+	return (struct ipi_index){ .sgi = ipi };
+}
+
 static inline void map_oob_ipis(int cpu, int ipi_offset)
 {
 	int ipi;
@@ -1046,16 +1081,6 @@ static void ipi_setup_oob_lpi(int ncpus)
 		map_oob_ipis(cpu, nr_ipi);
 }
 
-static void __smp_cross_call(const struct cpumask *target, unsigned int ipinr)
-{
-	trace_ipi_raise(target, ipi_types[ipinr]);
-	arm64_send_ipi(target, ipinr);
-}
-
-static DEFINE_PER_CPU(unsigned long, ipi_messages);
-
-static DEFINE_PER_CPU(unsigned int [MAX_IPI], ipi_counts);
-
 static irqreturn_t ipi_handler(int irq, void *data)
 {
 	unsigned long *pmsg;
@@ -1077,38 +1102,43 @@ static irqreturn_t ipi_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static void smp_cross_call(const struct cpumask *target, unsigned int ipinr)
-{
-	unsigned int cpu;
-
-	/* regular in-band IPI (multiplexed over SGI0). */
-	for_each_cpu(cpu, target)
-		set_bit(ipinr, &per_cpu(ipi_messages, cpu));
-
-	wmb();
-	__smp_cross_call(target, 0);
-}
-
 static unsigned int get_ipi_count(int ipi, unsigned int cpu)
 {
 	return per_cpu(ipi_counts, cpu)[ipi];
 }
 
-void irq_send_oob_ipi(unsigned int irq, const struct cpumask *cpumask)
-{
-	unsigned int sgi = irq - ipi_irq_base;
+static const char *oob_ipi_types[OOB_NR_IPI + 1] __tracepoint_string = {
+	[0]	= "Inband IPI (you should not see this!)",
+	[1]	= "OOB timer IPI",
+	[2]	= "OOB reschedule IPI",
+	[3]	= "OOB function call IPI",
+};
 
-	if (WARN_ON(irq_pipeline_debug() &&
-		    (sgi < OOB_IPI_OFFSET ||
-		     sgi >= OOB_IPI_OFFSET + OOB_NR_IPI)))
-		return;
+void irq_send_oob_ipi(unsigned int irq, const struct cpumask *target)
+{
+	unsigned int ipi = irq - ipi_irq_base;
+
+	WARN_ON(ipi < OOB_IPI_OFFSET);
 
 	/* Out-of-band IPI (SGI1-3). */
-	__smp_cross_call(cpumask, sgi);
+	trace_ipi_raise(target, oob_ipi_types[ipi]);
+	arm64_send_ipi(target, mkipi_oob(ipi));
 }
 EXPORT_SYMBOL_GPL(irq_send_oob_ipi);
 
 #else
+
+static inline struct ipi_index mkipi_inband(unsigned int ipi,
+					    const struct cpumask *target)
+{
+	WARN_ON(ipi >= MAX_IPI);
+	return (struct ipi_index){ .sgi = ipi };
+}
+
+static inline struct ipi_index mkipi_oob(unsigned int ipi)
+{
+	WARN_ON_ONCE(1);
+}
 
 static inline void ipi_setup_oob_sgi(void)
 { }
@@ -1124,12 +1154,6 @@ static irqreturn_t ipi_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static void smp_cross_call(const struct cpumask *target, unsigned int ipinr)
-{
-	trace_ipi_raise(target, ipi_types[ipinr]);
-	arm64_send_ipi(target, ipinr);
-}
-
 static unsigned int get_ipi_count(int ipi, unsigned int cpu)
 {
   	struct irq_desc *desc = get_ipi_desc(cpu, ipi);
@@ -1137,6 +1161,12 @@ static unsigned int get_ipi_count(int ipi, unsigned int cpu)
 }
 
 #endif /* CONFIG_IRQ_PIPELINE */
+
+static void smp_cross_call(const struct cpumask *target, unsigned int ipinr)
+{
+	trace_ipi_raise(target, ipi_types[ipinr]);
+	arm64_send_ipi(target, mkipi_inband(ipinr, target));
+}
 
 static bool ipi_should_be_nmi(enum ipi_msg_type ipi)
 {
