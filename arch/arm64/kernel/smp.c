@@ -1020,12 +1020,14 @@ static void do_handle_IPI(int ipinr)
 
 #ifdef CONFIG_IRQ_PIPELINE
 
-static inline void map_oob_ipis(int cpu)
+static inline void map_oob_ipis(int cpu, int ipi_offset)
 {
 	int ipi;
 
+	ipi_offset = ipi_irq_base + (cpu * ipi_offset);
+
 	for (ipi = OOB_IPI_OFFSET; ipi < OOB_NR_IPI + OOB_IPI_OFFSET; ipi++)
-		get_ipi_desc(cpu, ipi) = irq_to_desc(ipi_irq_base + ipi);
+		get_ipi_desc(cpu, ipi) = irq_to_desc(ipi_offset + ipi);
 }
 
 static void ipi_setup_oob_sgi(void)
@@ -1033,7 +1035,7 @@ static void ipi_setup_oob_sgi(void)
 	int cpu;
 
 	for_each_possible_cpu(cpu)
-		map_oob_ipis(cpu);
+		map_oob_ipis(cpu, 0);
 }
 
 static void ipi_setup_oob_lpi(int ncpus)
@@ -1041,7 +1043,7 @@ static void ipi_setup_oob_lpi(int ncpus)
 	int cpu;
 
 	for (cpu = 0; cpu < ncpus; cpu++)
-		map_oob_ipis(cpu);
+		map_oob_ipis(cpu, nr_ipi);
 }
 
 static void __smp_cross_call(const struct cpumask *target, unsigned int ipinr)
