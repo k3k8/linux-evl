@@ -1054,7 +1054,7 @@ static void __smp_cross_call(const struct cpumask *target, unsigned int ipinr)
 
 static DEFINE_PER_CPU(unsigned long, ipi_messages);
 
-static DEFINE_PER_CPU(unsigned int [NR_IPI], ipi_counts);
+static DEFINE_PER_CPU(unsigned int [MAX_IPI], ipi_counts);
 
 static irqreturn_t ipi_handler(int irq, void *data)
 {
