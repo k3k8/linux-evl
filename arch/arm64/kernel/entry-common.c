@@ -90,10 +90,6 @@ static noinstr void arm64_pipeline_el1_irq(struct pt_regs *regs,
 		prevd = handle_irq_pipelined_prepare(regs);
 		do_interrupt_handler(regs, handler);
 		handle_irq_pipelined_finish(prevd, regs);
-		if (running_inband() && user_mode(regs)) {
-			stall_inband_nocheck();
-			irqentry_exit_to_user_mode(regs);
-		}
 		instrumentation_end();
 		mte_check_tfsr_exit();
 		return;
