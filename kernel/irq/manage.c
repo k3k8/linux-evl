@@ -2580,6 +2580,16 @@ struct irqaction *create_percpu_irqaction(irq_handler_t handler, unsigned long f
 	return action;
 }
 
+int request_percpu_irq_affinity_flags(unsigned int irq, irq_handler_t handler,
+				      unsigned long flags, const char *devname,
+				      const cpumask_t *affinity,
+				      void __percpu *dev_id)
+{
+	return __request_percpu_irq(irq, handler, flags, devname, affinity,
+				    dev_id);
+}
+EXPORT_SYMBOL_GPL(request_percpu_irq_affinity_flags);
+
 /**
  * __request_percpu_irq - allocate a percpu interrupt line
  * @irq:	Interrupt line to allocate
