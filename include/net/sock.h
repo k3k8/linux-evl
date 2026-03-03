@@ -1881,7 +1881,7 @@ int sock_oob_bind(struct sock *sk, struct sockaddr_unsized *addr, int len);
 int sock_oob_shutdown(struct sock *sk, int how);
 
 int sock_oob_connect(struct sock *sk,
-		struct sockaddr *addr, int len, int flags);
+		struct sockaddr_unsized *addr, int len, int flags);
 
 long sock_inband_ioctl_redirect(struct sock *sk,
 				unsigned int cmd, unsigned long arg);

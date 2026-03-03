@@ -176,7 +176,7 @@ int __weak sock_oob_shutdown(struct sock *sk, int how)
 }
 
 int __weak sock_oob_connect(struct sock *sk,
-			struct sockaddr *addr, int len, int flags)
+			struct sockaddr_unsized *addr, int len, int flags)
 {
 	return 0;
 }
@@ -239,7 +239,7 @@ static inline void sock_oob_release(struct socket *sock)
 }
 
 static inline int sock_oob_connect(struct sock *sk,
-				struct sockaddr *addr, int len, int flags)
+				struct sockaddr_unsized *addr, int len, int flags)
 {
 	return 0;
 }
@@ -2222,7 +2222,7 @@ int __sys_connect_file(struct file *file, struct sockaddr_storage *address,
 	err = READ_ONCE(sock->ops)->connect(sock, (struct sockaddr_unsized *)address,
 					    addrlen, sock->file->f_flags | file_flags);
 	if (!err && sock_oob_capable(sock)) {
-		err = sock_oob_connect(sock->sk, (struct sockaddr *)address,
+		err = sock_oob_connect(sock->sk, (struct sockaddr_unsized *)address,
 				addrlen, sock->file->f_flags | file_flags);
 		if (err)
 			goto out;
