@@ -211,26 +211,40 @@ static void free_inband_skb(struct sk_buff *skb)
 	}
 }
 
+static inline bool skb_data_unref(const struct sk_buff *skb,
+				  struct skb_shared_info *shinfo)
+{
+	int bias;
+
+	if (!skb->cloned)
+		return true;
+
+	bias = skb->nohdr ? (1 << SKB_DATAREF_SHIFT) + 1 : 1;
+
+	if (atomic_read(&shinfo->dataref) == bias)
+		smp_rmb();
+	else if (atomic_sub_return(bias, &shinfo->dataref))
+		return false;
+
+	return true;
+}
+
 static void __free_evl_skb(struct sk_buff *skb, struct net_device *dev)
 {
 	struct skb_shared_info *shinfo = skb_shinfo(skb);
 	struct evl_netdev_state *est = dev->oob_state.estate;
 	unsigned long flags;
 
+	if (EVL_WARN_ON(NET, !skb_is_oob_managed(skb)))
+		return;
+
 	/*
-	 * Attempt to release the heading data to the originating page
-	 * pool if any.
+	 * Attempt to release the payload to the originating page pool
+	 * if any, dropping the reference the caller has on the
+	 * storage. Skip release if still in use elsewhere.
 	 */
-	if (unlikely(!skb->head))
+	if (!skb->head || !skb_data_unref(skb, shinfo))
 		goto put_skb;
-
-	/* If the data storage is still shared, don't release it. */
-	if (skb->cloned &&
-	    atomic_sub_return(skb->nohdr ? (1 << SKB_DATAREF_SHIFT) + 1 : 1,
-			      &shinfo->dataref))
-		goto put_skb;
-
-	EVL_WARN_ON(NET, atomic_read(&shinfo->dataref) < 0);
 
 	skb_pp_recycle(skb, skb->head);
 
@@ -263,8 +277,9 @@ put_skb:
 	 * or not). If the skb shell belongs to the oob pool, release
 	 * it immediately.  Otherwise we need a little help from the
 	 * in-band stack for finalizing this buffer, relay it
-	 * downstream for release so that the head state is flushed as
-	 * well.
+	 * downstream for release so that the head state may be
+	 * released as well (unless we did so to our own pool right
+	 * above).
 	 */
 	if (skb_is_oob(skb))
 		put_oob_skb(skb);
@@ -301,7 +316,27 @@ static void free_evl_skb(struct sk_buff *skb)
 	netdev_dbg(dev, "releasing skb %px (has_frags=%d)\n",
 		skb, skb_has_frag_list(skb));
 
-	__free_evl_skb(skb, dev);
+	/*
+	 * If the skb payload is currently shared with other in-flight
+	 * skbs and the skb shell must be forwarded to in-band for
+	 * release by __kfree_skb() then we must not unref the data,
+	 * but pass the skb down immediately instead, so that both the
+	 * skb shell and the payload will be released from there. This
+	 * case typically happens when a network tap is active on
+	 * skb->dev.
+	 *
+	 * CAUTION: the above holds true because we know that skb
+	 * refers to a payload which lives in some oob page pool
+	 * (skb_is_oob_managed() is true). For this reason, in-band
+	 * will pp_recycle it to a pool which we know can be safely
+	 * accessed from oob or in-band context indifferently, by
+	 * construction. Sidenote: we never clone skbs on a fragment
+	 * list so the following check does not apply to them.
+	 */
+	if (!skb_is_oob(skb) && skb_cloned(skb))
+		free_inband_skb(skb);
+	else
+		__free_evl_skb(skb, dev);
 }
 
 static void __free_skb(struct sk_buff *skb)
