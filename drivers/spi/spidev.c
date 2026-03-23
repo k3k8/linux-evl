@@ -475,14 +475,14 @@ static int spidev_mmap(struct file *filp, struct vm_area_struct *vma)
 	struct spidev_data *spidev = filp->private_data;
 	int ret;
 
-	mutex_lock(&spidev->buf_lock);
+	mutex_lock(&spidev->spi_lock);
 
 	if (!spidev->oob.enabled)
 		ret = -ENXIO;
 	else
 		ret = spi_mmap_oob_transfer(vma, &spidev->oob.xfer);
 
-	mutex_unlock(&spidev->buf_lock);
+	mutex_unlock(&spidev->spi_lock);
 
 	return ret;
 }
