@@ -444,12 +444,13 @@ int arch_setup_additional_pages(struct linux_binprm *bprm, int uses_interp)
 }
 #endif
 
+#ifdef CONFIG_IRQ_PIPELINE
+
 /*
  * When pipelining interrupts, we have to reconcile the hardware and
  * the virtual states. Hard irqs are off on entry while the current
  * stage has to be unstalled: fix this up by stalling the in-band
- * stage on entry, unstalling on exit. These bits are compiled out if
- * !IRQ_PIPELINE.
+ * stage on entry, unstalling on exit.
  */
 asmlinkage void __sched arm_preempt_schedule_irq(void)
 {
@@ -458,3 +459,5 @@ asmlinkage void __sched arm_preempt_schedule_irq(void)
 	preempt_schedule_irq();
 	unstall_inband_nocheck();
 }
+
+#endif
