@@ -542,7 +542,27 @@ static irqreturn_t forward_irq_event(struct irq_desc *desc)
 	return ret;
 }
 
-#else
+static bool irq_active_on_this_cpu(struct irq_desc *desc)
+{
+	struct irq_data *data = &desc->irq_data;
+	const struct cpumask *aff;
+
+	/* desc marked as in progress, no other CPUs on !SMP */
+	if (!IS_ENABLED(CONFIG_SMP))
+		return true;
+
+	/* The below works only for single target interrupts */
+	if (!irqd_is_single_target(data) || desc->handle_irq != handle_edge_irq)
+		return false;
+
+	aff = irq_data_get_effective_affinity_mask(data);
+	if (cpumask_first(aff) != smp_processor_id())
+		return false;
+
+	return true;
+}
+
+#else	/* !CONFIG_IRQ_PIPELINE */
 
 static inline bool may_start_flow(int flow)
 {
@@ -554,7 +574,12 @@ static irqreturn_t forward_irq_event(struct irq_desc *desc)
 	return IRQ_NONE;
 }
 
-#endif
+static bool irq_active_on_this_cpu(struct irq_desc *desc)
+{
+	return false;
+}
+
+#endif	/* !CONFIG_IRQ_PIPELINE */
 
 /*
  * get_flow_step - Determine which step of the interrupt flow handling
@@ -673,28 +698,6 @@ static inline bool should_feed_pipeline(struct irq_desc *desc, int state)
 		return true;
 	}
 }
-
-#ifdef CONFIG_IRQ_PIPELINE
-static bool irq_active_on_this_cpu(struct irq_desc *desc)
-{
-	struct irq_data *data = &desc->irq_data;
-	const struct cpumask *aff;
-
-	/* desc marked as in progress, no other CPUs on !SMP */
-	if (!IS_ENABLED(CONFIG_SMP))
-		return true;
-
-	/* The below works only for single target interrupts */
-	if (!irqd_is_single_target(data) || desc->handle_irq != handle_edge_irq)
-		return false;
-
-	aff = irq_data_get_effective_affinity_mask(data);
-	if (cpumask_first(aff) != smp_processor_id())
-		return false;
-
-	return true;
-}
-#endif
 
 static bool irq_may_run(struct irq_desc *desc)
 {
