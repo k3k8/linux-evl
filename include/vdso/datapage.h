@@ -110,7 +110,7 @@ struct vdso_data {
 	u32			cs_type_seq;
 	char			cs_mmdev[16];
 #endif
- 
+
 	struct arch_vdso_data	arch_data;
 };
 
@@ -128,8 +128,10 @@ struct clksrc_info {
 };
 
 struct vdso_priv {
-	u32 current_cs_type_seq;
-	struct clksrc_info clksrc_info[CLOCKSOURCE_VDSO_MMIO + CLKSRC_USER_MMIO_MAX];
+	struct vdso_priv_cs {
+		u32 current_cs_type_seq;
+		struct clksrc_info clksrc_info[CLOCKSOURCE_VDSO_MMIO + CLKSRC_USER_MMIO_MAX];
+	} cs_bases[CS_BASES];
 };
 
 #endif	/* !CONFIG_GENERIC_CLOCKSOURCE_VDSO */

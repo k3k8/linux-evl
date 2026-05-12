@@ -127,7 +127,7 @@ static __always_inline u32 to_cs_type_seq(u16 type, u16 seq)
 }
 
 static notrace noinline __cold
-void map_clocksource(const struct vdso_data *vd, struct vdso_priv *vp,
+void map_clocksource(const struct vdso_data *vd, struct vdso_priv_cs *vpcs,
 		     u32 seq, u32 new_cs_type_seq)
 {
 	vdso_read_cycles_t *read_cycles = NULL;
@@ -137,7 +137,7 @@ void map_clocksource(const struct vdso_data *vd, struct vdso_priv *vp,
 
 	new_cs_seq = to_seq(new_cs_type_seq);
 	new_cs_type = to_cs_type(new_cs_type_seq);
-	info = &vp->clksrc_info[new_cs_type];
+	info = &vpcs->clksrc_info[new_cs_type];
 
 	if (new_cs_type < CLOCKSOURCE_VDSO_MMIO)
 		goto done;
@@ -170,33 +170,35 @@ done:
 	info->read_cycles = read_cycles;
 	smp_wmb();
 	new_cs_type_seq = to_cs_type_seq(new_cs_type, new_cs_seq);
-	WRITE_ONCE(vp->current_cs_type_seq, new_cs_type_seq);
+	WRITE_ONCE(vpcs->current_cs_type_seq, new_cs_type_seq);
 
 	return;
 
 fallback_to_syscall:
 	new_cs_type = CLOCKSOURCE_VDSO_NONE;
-	info = &vp->clksrc_info[new_cs_type];
+	info = &vpcs->clksrc_info[new_cs_type];
 	goto done;
 }
 
 static inline notrace
-bool get_hw_counter(const struct vdso_data *vd, u32 *r_seq, u64 *cycles)
+bool get_hw_counter(const struct vdso_data *vd, clockid_t clk,
+		    u32 *r_seq, u64 *cycles)
 {
 	const struct clksrc_info *info;
-	struct vdso_priv *vp;
+	struct vdso_priv_cs *vpcs;
 	u32 seq, cs_type_seq;
 	unsigned int cs;
 
-	vp = __arch_get_vdso_priv();
+	vpcs = &__arch_get_vdso_priv()->cs_bases[
+		clk == CLOCK_MONOTONIC_RAW ? CS_RAW : CS_HRES_COARSE];
 
 	for (;;) {
 		seq = vdso_read_begin(vd);
-		cs_type_seq = READ_ONCE(vp->current_cs_type_seq);
+		cs_type_seq = READ_ONCE(vpcs->current_cs_type_seq);
 		if (likely(to_seq(cs_type_seq) == to_seq(vd->cs_type_seq)))
 			break;
 
-		map_clocksource(vd, vp, seq, vd->cs_type_seq);
+		map_clocksource(vd, vpcs, seq, vd->cs_type_seq);
 	}
 
 	switch (to_cs_type(cs_type_seq)) {
@@ -211,7 +213,7 @@ bool get_hw_counter(const struct vdso_data *vd, u32 *r_seq, u64 *cycles)
 		break;
 	default:
 		cs = to_cs_type(READ_ONCE(cs_type_seq));
-		info = &vp->clksrc_info[cs];
+		info = &vpcs->clksrc_info[cs];
 		*cycles = info->read_cycles(info);
 		break;
 	}
@@ -224,7 +226,8 @@ bool get_hw_counter(const struct vdso_data *vd, u32 *r_seq, u64 *cycles)
 #else
 
 static inline notrace
-bool get_hw_counter(const struct vdso_data *vd, u32 *r_seq, u64 *cycles)
+bool get_hw_counter(const struct vdso_data *vd, clockid_t clk,
+		u32 *r_seq, u64 *cycles)
 {
 	*r_seq = vdso_read_begin(vd);
 
@@ -290,7 +293,7 @@ static __always_inline int do_hres_timens(const struct vdso_data *vdns, clockid_
 	vdso_ts = &vd->basetime[clk];
 
 	do {
-		if (!get_hw_counter(vd, &seq, &cycles))
+		if (!get_hw_counter(vd, clk, &seq, &cycles))
 			return -1;
 		ns = vdso_ts->nsec;
 		last = vd->cycle_last;
@@ -359,7 +362,7 @@ static __always_inline int do_hres(const struct vdso_data *vd, clockid_t clk,
 
 		smp_rmb();
 
-		if (!get_hw_counter(vd, &seq, &cycles))
+		if (!get_hw_counter(vd, clk, &seq, &cycles))
 			return -1;
 
 		ns = vdso_ts->nsec;
