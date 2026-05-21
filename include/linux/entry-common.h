@@ -389,11 +389,11 @@ again:
 	if (unlikely(ti_work & EXIT_TO_USER_MODE_WORK))
 		ti_work = exit_to_user_mode_loop(regs, ti_work);
 
-	arch_exit_to_user_mode_prepare(regs, ti_work);
-
 	/* Dovetail: Fire pending RETUSER request. */
 	if (do_retuser(ti_work))
 		goto again;
+
+	arch_exit_to_user_mode_prepare(regs, ti_work);
 
 	/* Ensure that kernel state is sane for a return to userspace */
 	kmap_assert_nomap();
