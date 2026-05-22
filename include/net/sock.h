@@ -1879,6 +1879,12 @@ static inline int sock_oob_bind(struct sock *sk,
 	return 0;
 }
 
+static inline int sock_oob_connect(struct sock *sk,
+				struct sockaddr *addr, int len, int flags)
+{
+	return 0;
+}
+
 static inline int sock_oob_shutdown(struct sock *sk, int how)
 {
 	return 0;
