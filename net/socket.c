@@ -169,13 +169,14 @@ int __weak sock_oob_bind(struct sock *sk, struct sockaddr *addr, int len)
 }
 EXPORT_SYMBOL_GPL(sock_oob_bind);
 
-int __weak sock_oob_shutdown(struct sock *sk, int how)
+int __weak sock_oob_connect(struct sock *sk,
+			struct sockaddr *addr, int len, int flags)
 {
 	return 0;
 }
+EXPORT_SYMBOL_GPL(sock_oob_connect);
 
-int __weak sock_oob_connect(struct sock *sk,
-			struct sockaddr *addr, int len, int flags)
+int __weak sock_oob_shutdown(struct sock *sk, int how)
 {
 	return 0;
 }
@@ -235,12 +236,6 @@ static inline int sock_oob_attach(struct socket *sock)
 
 static inline void sock_oob_release(struct socket *sock)
 {
-}
-
-static inline int sock_oob_connect(struct sock *sk,
-				struct sockaddr *addr, int len, int flags)
-{
-	return 0;
 }
 
 static inline long sock_inband_ioctl_redirect(struct sock *sk,
@@ -2233,12 +2228,6 @@ int __sys_connect_file(struct file *file, struct sockaddr_storage *address,
 
 	err = READ_ONCE(sock->ops)->connect(sock, (struct sockaddr *)address,
 				addrlen, sock->file->f_flags | file_flags);
-	if (!err && sock_oob_capable(sock)) {
-		err = sock_oob_connect(sock->sk, (struct sockaddr *)address,
-				addrlen, sock->file->f_flags | file_flags);
-		if (err)
-			goto out;
-	}
 out:
 	return err;
 }
