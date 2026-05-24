@@ -155,4 +155,35 @@ ssize_t evl_net_offload_inband(struct evl_socket *esk,
 			struct kvec *kvec, size_t count,
 			struct sockaddr_in *in_dest);
 
+int evl_socket_no_bind(struct evl_socket *esk,
+		struct sockaddr *addr, int len);
+
+int evl_socket_no_connect(struct evl_socket *esk,
+			struct sockaddr *addr, int len, int flags);
+
+int evl_socket_no_ioctl(struct evl_socket *esk, unsigned int cmd,
+			unsigned long arg);
+
+ssize_t evl_socket_no_send(struct evl_socket *esk,
+			const struct user_oob_msghdr __user *u_msghdr,
+			struct iovec *iov,
+			size_t iovlen);
+
+ssize_t evl_socket_no_receive(struct evl_socket *esk,
+			struct user_oob_msghdr __user *u_msghdr,
+			struct iovec *iov,
+			size_t iovlen);
+
+__poll_t evl_socket_no_poll(struct evl_socket *esk,
+			struct oob_poll_wait *wait);
+
+int evl_socket_no_shutdown(struct evl_socket *esk, int how);
+
+int evl_socket_no_solicit(struct net *net,
+			struct net_device *dev,
+			struct sockaddr *addr, int flags);
+
+int evl_socket_no_offload(struct evl_socket *esk,
+			struct evl_net_offload *ofld);
+
 #endif /* !_EVL_NET_SOCKET_H */
