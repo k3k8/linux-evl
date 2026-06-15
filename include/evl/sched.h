@@ -120,9 +120,11 @@ struct evl_sched_class {
 	void (*sched_dequeue)(struct evl_thread *thread);
 	void (*sched_requeue)(struct evl_thread *thread);
 	struct evl_thread *(*sched_pick)(struct evl_rq *rq);
+	void (*sched_switch)(struct evl_thread *prev,
+			struct evl_thread *next);
 	void (*sched_yield)(struct evl_thread *thread);
 	void (*sched_migrate)(struct evl_thread *thread,
-			      struct evl_rq *rq);
+			struct evl_rq *rq);
 	/*
 	 * Set base scheduling parameters. This routine is indirectly
 	 * called upon a change of base scheduling settings through
