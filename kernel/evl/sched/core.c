@@ -773,7 +773,8 @@ static inline void set_next_running(struct evl_rq *rq,
 		evl_stop_timer(&rq->rrbtimer);
 }
 
-static struct evl_thread *__pick_next_thread(struct evl_rq *rq)
+static __always_inline struct evl_thread *
+__pick_next_thread(struct evl_rq *rq)
 {
 	struct evl_sched_class *sched_class;
 	struct evl_thread *curr = rq->curr;
@@ -821,8 +822,15 @@ static struct evl_thread *__pick_next_thread(struct evl_rq *rq)
 /* rq->curr->lock + rq->lock held, hard irqs off. */
 static struct evl_thread *pick_next_thread(struct evl_rq *rq)
 {
-	struct evl_thread *next = __pick_next_thread(rq);
+	struct evl_thread *next, *prev = rq->curr;
+	struct evl_sched_class *prev_class = prev->sched_class;
 
+	next = __pick_next_thread(rq);
+
+	if (next != prev && prev_class->sched_switch)
+		prev_class->sched_switch(prev, next);
+
+	trace_evl_pick_thread(next);
 	set_next_running(rq, next);
 
 	return next;
@@ -973,7 +981,6 @@ void __evl_schedule(void) /* oob or/and hard irqs off (CPU migration-safe) */
 	}
 
 	next = pick_next_thread(this_rq);
-	trace_evl_pick_thread(next);
 	if (next == curr) {
 		if (unlikely(next->state & EVL_T_ROOT)) {
 			if (this_rq->local_flags & RQ_TPROXY)
