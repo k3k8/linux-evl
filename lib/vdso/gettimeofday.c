@@ -126,18 +126,6 @@ void map_clocksource(const struct vdso_data *vd, struct vdso_priv_cs *vpcs,
 	if (fd < 0)
 		goto fallback_to_syscall;
 
-	if (vdso_read_retry(vd, seq)) {
-		vdso_read_begin(vd);
-		if (to_seq(vd->cs_type_seq) != new_cs_seq) {
-			/*
-			 * cs_mmdev no longer corresponds to
-			 * vd->cs_type_seq.
-			 */
-			clock_close_device(fd);
-			return;
-		}
-	}
-
 	ret = clock_ioctl_device(fd, CLKSRC_USER_MMIO_MAP, (long)&info->mmio);
 	clock_close_device(fd);
 	if (ret < 0)
