@@ -83,7 +83,7 @@ static void update_generic_mmio(struct vdso_data *vdata, struct clocksource *cs)
 	if (cs->vdso_type == (vdata->cs_type_seq >> 16))
 		return;
 
-	seq = vdata->cs_type_seq;
+	seq = vdata->cs_type_seq & 0xffff;
 	if (++seq == 0)
 		seq = 1;
 
