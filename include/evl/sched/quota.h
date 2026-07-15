@@ -39,7 +39,6 @@ struct evl_quota_group {
 };
 
 struct evl_sched_quota {
-	ktime_t period;
 	struct evl_timer refill_timer;
 	struct evl_timer limit_timer;
 	struct list_head groups;
