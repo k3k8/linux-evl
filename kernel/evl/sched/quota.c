@@ -515,6 +515,7 @@ static int quota_create_group(struct evl_quota_group *tg,
 {
 	int tgid, nr_groups = MAX_QUOTA_GROUPS;
 	struct evl_sched_quota *qs = &rq->quota;
+	ktime_t period = READ_ONCE(quota_period);
 
 	assert_hard_lock(&rq->lock);
 
@@ -525,12 +526,12 @@ static int quota_create_group(struct evl_quota_group *tg,
 	__set_bit(tgid, group_map);
 	tg->tgid = tgid;
 	tg->rq = rq;
-	tg->run_budget = qs->period;
+	tg->run_budget = period;
 	tg->run_credit = 0;
 	tg->quota_percent = 100;
 	tg->quota_peak_percent = 100;
-	tg->quota = qs->period;
-	tg->quota_peak = qs->period;
+	tg->quota = period;
+	tg->quota_peak = period;
 	tg->nr_active = 0;
 	tg->nr_threads = 0;
 	INIT_LIST_HEAD(&tg->members);
@@ -538,8 +539,8 @@ static int quota_create_group(struct evl_quota_group *tg,
 
 	if (list_empty(&qs->groups))
 		evl_start_timer(&qs->refill_timer,
-				evl_abs_timeout(&qs->refill_timer, qs->period),
-				qs->period);
+				evl_abs_timeout(&qs->refill_timer, period),
+				period);
 
 	list_add(&tg->next, &qs->groups);
 	*quota_sum_r = quota_sum_all(qs);
@@ -605,6 +606,7 @@ static void quota_set_limit(struct evl_quota_group *tg,
 			int quota_percent, int quota_peak_percent,
 			int *quota_sum_r)
 {
+	ktime_t period = READ_ONCE(quota_period);
 	struct evl_rq *rq = tg->rq;
 	struct evl_thread *thread, *tmp;
 	struct evl_sched_quota *qs = &rq->quota;
@@ -619,9 +621,9 @@ static void quota_set_limit(struct evl_quota_group *tg,
 
 	if (quota_percent < 0 || quota_percent > 100) { /* Quota off. */
 		quota_percent = 100;
-		tg->quota = qs->period;
+		tg->quota = period;
 	} else {
-		n = qs->period * quota_percent;
+		n = period * quota_percent;
 		do_div(n, 100);
 		tg->quota = n;
 	}
@@ -631,9 +633,9 @@ static void quota_set_limit(struct evl_quota_group *tg,
 
 	if (quota_peak_percent < 0 || quota_peak_percent > 100) {
 		quota_peak_percent = 100;
-		tg->quota_peak = qs->period;
+		tg->quota_peak = period;
 	} else {
-		n = qs->period * quota_peak_percent;
+		n = period * quota_peak_percent;
 		do_div(n, 100);
 		tg->quota_peak = n;
 	}
@@ -800,14 +802,34 @@ static void quota_init(struct evl_rq *rq)
 	evl_set_timer_name(&qs->limit_timer, "[quota-limit]");
 }
 
+static void __reset_refill_timer(void *arg)
+{
+	struct evl_rq *rq = evl_cpu_rq(smp_processor_id());
+	struct evl_sched_quota *qs = &rq->quota;
+	ktime_t period = *(ktime_t *)arg;
+
+	evl_start_timer(&qs->refill_timer,
+			evl_abs_timeout(&qs->refill_timer, 0),
+			period);
+}
+
 void evl_set_quota_period(ktime_t period)
 {
-	quota_period = period;
+	WRITE_ONCE(quota_period, period);
+
+	/*
+	 * Writing to the base period variable resets the refill timer
+	 * on each runqueue, even if the interval does not actually
+	 * change. This is a courtesy to userland, giving it a simple
+	 * way to (roughly) synchronize on the start of the periodic
+	 * timeline.
+	 */
+	on_each_cpu_mask(&evl_oob_cpus,	__reset_refill_timer, &period, true);
 }
 
 ktime_t evl_get_quota_period(void)
 {
-	return quota_period;
+	return READ_ONCE(quota_period);
 }
 
 struct evl_sched_class evl_sched_quota = {
