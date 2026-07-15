@@ -451,7 +451,7 @@ static DEVICE_ATTR_RO(cpus);
 
 #ifdef CONFIG_EVL_SCHED_QUOTA
 
-static ssize_t quota_show(struct device *dev,
+static ssize_t quota_period_show(struct device *dev,
 			struct device_attribute *attr,
 			char *buf)
 {
@@ -459,7 +459,7 @@ static ssize_t quota_show(struct device *dev,
 			ktime_to_ns(evl_get_quota_period()));
 }
 
-static ssize_t quota_store(struct device *dev,
+static ssize_t quota_period_store(struct device *dev,
 			struct device_attribute *attr,
 			const char *buf, size_t count)
 {
@@ -481,7 +481,7 @@ static ssize_t quota_store(struct device *dev,
 
 	return count;
 }
-static DEVICE_ATTR_RW(quota);
+static DEVICE_ATTR_RW(quota_period);
 
 #endif
 
@@ -502,7 +502,7 @@ static struct attribute *control_attrs[] = {
 	&dev_attr_abi.attr,
 	&dev_attr_cpus.attr,
 #ifdef CONFIG_EVL_SCHED_QUOTA
-	&dev_attr_quota.attr,
+	&dev_attr_quota_period.attr,
 #endif
 #ifdef CONFIG_EVL_SCHED_TP
 	&dev_attr_tp.attr,
