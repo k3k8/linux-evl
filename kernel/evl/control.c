@@ -327,6 +327,7 @@ static long control_common_ioctl(struct file *filp, unsigned int cmd,
 
 static int control_open(struct inode *inode, struct file *filp)
 {
+	struct evl_file *efile;
 	int ret;
 
 	/*
@@ -340,7 +341,33 @@ static int control_open(struct inode *inode, struct file *filp)
 	if (ret)
 		return ret;
 
+	/*
+	 * Bind an EVL file to this instance, only to allow for
+	 * oob_ioctl() requests to be handled. This is ok to leave the
+	 * mm context enabled on error, it will be flushed on process
+	 * exit.
+	 */
+	efile = kzalloc(sizeof(*efile), GFP_KERNEL);
+	if (!efile)
+		return -ENOMEM;
+
+	ret = evl_open_file(efile, filp);
+	if (ret)
+		return ret;
+
+	filp->private_data = efile;
+
 	stream_open(inode, filp);
+
+	return 0;
+}
+
+static int control_release(struct inode *inode, struct file *filp)
+{
+	struct evl_file *efile = filp->private_data;
+
+	evl_release_file(efile);
+	kfree(efile);
 
 	return 0;
 }
@@ -397,13 +424,14 @@ static int control_mmap(struct file *filp, struct vm_area_struct *vma)
 }
 
 static const struct file_operations control_fops = {
-	.open		=	control_open,
-	.oob_ioctl	=	control_oob_ioctl,
-	.unlocked_ioctl	=	control_ioctl,
-	.mmap		=	control_mmap,
+	.open			= control_open,
+	.release		= control_release,
+	.oob_ioctl		= control_oob_ioctl,
+	.unlocked_ioctl		= control_ioctl,
+	.mmap			= control_mmap,
 #ifdef CONFIG_COMPAT
-	.compat_ioctl	= compat_ptr_ioctl,
-	.compat_oob_ioctl  = compat_ptr_oob_ioctl,
+	.compat_ioctl		= compat_ptr_ioctl,
+	.compat_oob_ioctl	= compat_ptr_oob_ioctl,
 #endif
 };
 
