@@ -7,6 +7,8 @@
 #ifndef _EVL_UAPI_TRACE_ABI_H
 #define _EVL_UAPI_TRACE_ABI_H
 
+#define EVL_TRACE_DEV  "/dev/evl/trace"
+
 #define EVL_TRACE_IOCBASE	'O'
 
 #define EVL_TRCIOC_SNAPSHOT	_IO(EVL_TRACE_IOCBASE, 0)
