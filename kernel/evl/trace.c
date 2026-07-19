@@ -10,6 +10,40 @@
 #include <uapi/evl/trace-abi.h>
 #include <trace/events/evl.h>
 
+static int trace_open(struct inode *inode, struct file *filp)
+{
+	struct evl_file *efile;
+	int ret;
+
+	/*
+	 * Bind an EVL file to this instance, only to allow for
+	 * oob_write() requests to be handled.
+	 */
+	efile = kzalloc(sizeof(*efile), GFP_KERNEL);
+	if (!efile)
+		return -ENOMEM;
+
+	ret = evl_open_file(efile, filp);
+	if (ret)
+		return ret;
+
+	filp->private_data = efile;
+
+	stream_open(inode, filp);
+
+	return 0;
+}
+
+static int trace_release(struct inode *inode, struct file *filp)
+{
+	struct evl_file *efile = filp->private_data;
+
+	evl_release_file(efile);
+	kfree(efile);
+
+	return 0;
+}
+
 static long trace_common_ioctl(struct file *filp, unsigned int cmd,
 			unsigned long arg)
 {
@@ -76,7 +110,8 @@ ssize_t trace_write(struct file *filp,
 }
 
 static const struct file_operations trace_fops = {
-	.open		= 	stream_open,
+	.open		= 	trace_open,
+	.release	= 	trace_release,
 	.unlocked_ioctl	=	trace_ioctl,
 	.write		=	trace_write,
 	.oob_ioctl	=	trace_oob_ioctl,
