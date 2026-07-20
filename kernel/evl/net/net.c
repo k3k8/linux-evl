@@ -116,6 +116,8 @@ fail_netdev:
 fail_net:
 	evl_net_cleanup_qdisc();
 
+	BUILD_BUG_ON(_MSG_PROBE != MSG_PROBE);
+
 	return ret;
 }
 

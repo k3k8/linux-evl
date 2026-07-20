@@ -224,7 +224,7 @@ static int find_egress_path(struct evl_socket *esk,
 
 	ert = evl_net_route_ipv4_output(sock_net(esk->sk), daddr);
 	if (!ert)
-		return -EHOSTUNREACH;
+		return -EADDRNOTAVAIL;
 
 	/*
 	 * Need a broadcast-enabled socket for using a broadcast
@@ -243,10 +243,11 @@ static int find_egress_path(struct evl_socket *esk,
 	if  (msg_flags & MSG_DONTROUTE && rt_nexthop(ert->rt, daddr) != daddr)
 		goto fail;
 
-	ret = -EHOSTUNREACH;
+	ret = -EADDRNOTAVAIL;
 	earp = evl_net_get_arp_entry_or_pseudo(ert->rt->dst.dev, daddr,
 					pseudo_earp);
-	if (!earp)
+	if (!earp ||
+	    ((msg_flags & MSG_STEADY) && !(earp->nud_state & NUD_PERMANENT)))
 		goto fail;
 
 	*ertp = ert;
@@ -352,7 +353,7 @@ static ssize_t send_udp(struct evl_socket *esk,
 	 * not affect routing, it ensures that the routing information
 	 * we use is right for the task.
 	 */
-	if (msg_flags & ~(MSG_DONTWAIT|MSG_DONTROUTE))
+	if (msg_flags & ~(MSG_DONTWAIT|MSG_DONTROUTE|MSG_PROBE|MSG_STEADY))
 		return -EINVAL;
 
 	if (evl_socket_f_flags(esk) & O_NONBLOCK)
@@ -406,31 +407,19 @@ static ssize_t send_udp(struct evl_socket *esk,
 	if (datalen > 65535)
 		return -EMSGSIZE;
 
+	if (datalen == 0 && !(msg_flags & MSG_PROBE))
+		return 0;
+
 	/*
 	 * Try finding an oob path for the datagram based on the
 	 * routing information collected into our front caches. If
 	 * none, then offload the packet to the inband stack (as a
 	 * result, we may receive the missing information eventually).
-	 *
-	 * NOTE: Caller may send zero-sized message (i.e. datalen ==
-	 * 0) only to probe the out-of-band cache for the destination
-	 * address.
 	 */
 	ret = find_egress_path(esk, daddr, &ert, &earp, &pseudo_earp, msg_flags);
-	if (ret == -EMULTIHOP)
-		return ret;	/* MSG_DONTROUTE cannot be honored. */
-
 	if (ret) {
-		/*
-		 * No route known from the front cache - bummer. We
-		 * may have to offload the transmit operation to the
-		 * in-band stack, unless only probing or MSG_DONTWAIT
-		 * is set.
-		 */
-		if (msg_flags & MSG_DONTWAIT)
-			return -EWOULDBLOCK;
-
-		if (datalen == 0)
+		if (ret != -EADDRNOTAVAIL ||
+		    msg_flags & (MSG_PROBE|MSG_DONTWAIT|MSG_STEADY))
 			return ret;
 
 		/*
@@ -468,7 +457,7 @@ static ssize_t send_udp(struct evl_socket *esk,
 		return -EINPROGRESS;
 	}
 
-	if (datalen == 0)
+	if (datalen == 0 || msg_flags & MSG_PROBE)
 		goto out;
 
 	/*
