@@ -563,10 +563,11 @@ static int quota_destroy_group(struct evl_quota_group *tg,
 		return -EBUSY;
 
 	/*
-	 * Unregister the group before we drop rq->lock. As a result,
-	 * it won't accept threads anymore while we are busy moving
-	 * the current members to the fifo class, and concurrent
-	 * quota_remove requests would receive -EINVAL.
+	 * Unregister the group before we temporarily drop
+	 * rq->lock. As a result, it won't accept threads anymore
+	 * while we are busy moving the current members to the fifo
+	 * class, and concurrent quota_remove requests would receive
+	 * -EINVAL.
 	 */
 	__clear_bit(tg->tgid, group_map);
 	list_del(&tg->next);
@@ -575,9 +576,9 @@ static int quota_destroy_group(struct evl_quota_group *tg,
 		evl_stop_timer(&qs->refill_timer);
 
 	/*
-	 * Move group members to the fifo class. Since the correct
-	 * locking order is thread->lock => rq->lock but we already
-	 * hold rq->lock on entry, we do a trylock dance to prevent an
+	 * Move group members to the fifo class. The correct locking
+	 * order is thread->lock -> rq->lock but we already hold
+	 * rq->lock on entry, so we do a trylock dance to prevent an
 	 * ABBA issue. No livelock is possible since we unregistered
 	 * that group already, so &tg->members can only be depleted
 	 * (by this loop exclusively).
@@ -590,9 +591,10 @@ static int quota_destroy_group(struct evl_quota_group *tg,
 		if (raw_spin_trylock(&thread->lock)) {
 			evl_set_thread_schedparam_locked(thread,
 						&evl_sched_fifo, &param);
-			raw_spin_unlock(&thread->lock);
+			evl_put_thread_rq_check_noirq(thread, rq);
+		} else {
+			raw_spin_unlock_irqrestore(&rq->lock, flags);
 		}
-		raw_spin_unlock_irqrestore(&rq->lock, flags);
 		cpu_relax();
 		raw_spin_lock_irqsave(&rq->lock, flags);
 	}
