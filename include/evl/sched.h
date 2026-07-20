@@ -434,18 +434,19 @@ static inline bool evl_cannot_block(void)
  * wait channel. See comment in evl_set_thread_schedparam_locked() for
  * details about the requirements to achieve correctness in this case.
  *
- * CAUTION: we should hold NO lock on entry to this macro, at the very
- * least we must not hold any wchan or thread lock, otherwise an ABBA
- * issue is certain.
+ * CAUTION: we must not hold any wchan lock on entry to prevent any
+ * ABBA issue.
  */
 #define evl_put_thread_rq_check_noirq(__thread, __rq)			\
 	do {								\
 		bool __need_requeue = (__thread)->info & EVL_T_WCHAN;	\
 		if (__need_requeue)					\
 			(__thread)->info &= ~EVL_T_WCHAN;		\
+		evl_get_element(&(__thread)->element);			\
 		evl_put_thread_rq_noirq(__thread, __rq);		\
 		if (__need_requeue)					\
 			evl_adjust_wait_priority(__thread);		\
+		evl_put_element(&(__thread)->element);			\
 	} while (0)
 
 bool evl_set_effective_thread_priority(struct evl_thread *thread,
