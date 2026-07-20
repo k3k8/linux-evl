@@ -14,7 +14,16 @@
 
 #define SOCK_OOB	O_OOB	/* Request out-of-band capabilities */
 
-#define MSG_TIMESTAMP	MSG_ERRQUEUE	/* Alias to collect I/O timestamps */
+/*
+ * Some EVL-specific operation modifiers piggybacking off of common
+ * flags which have no meaning for out-of-band I/O.
+ */
+#define MSG_TIMESTAMP	MSG_ERRQUEUE	/* Collect I/O timestamps */
+#define MSG_STEADY	MSG_FIN		/* Require permanent peer address on xmit */
+#define _MSG_PROBE	0x10
+#ifndef MSG_PROBE
+#define MSG_PROBE	_MSG_PROBE
+#endif
 
 /*
  * CAUTION: the oob-specific socket options must not conflict with
