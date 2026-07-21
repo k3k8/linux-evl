@@ -451,8 +451,10 @@ static ssize_t send_udp(struct evl_socket *esk,
 
 		ret = evl_net_offload_inband(esk, &kvec, ret,
 					namelen ? &in_addr : NULL);
-		if (ret < 0)
+		if (ret < 0) {
+			evl_free(kvec.iov_base);
 			return ret;
+		}
 		/*
 		 * EVL-specific: we had to pass on the request to the
 		 * in-band stage for routing and/or MAC address
