@@ -286,7 +286,8 @@ ssize_t evl_net_offload_inband(struct evl_socket *esk,
 	ret = evl_call_inband(&ofld->work);
 	WARN_ON(!ret);
 
-	return count;
+	/* Paranoid, error is impossible in this dimension. */
+	return ret ? count : -EIO;
 }
 
 /*
