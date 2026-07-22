@@ -513,11 +513,11 @@ out:
 static ssize_t copy_datagram_to_user(struct user_oob_msghdr __user *u_msghdr,
 				const struct iovec *iov,
 				size_t iovlen,
-				struct sk_buff *skb,
-				__u32 msg_uflags)
+				struct sk_buff *skb)
 {
 	struct sockaddr_in addr, __user *u_addr;
 	__u64 name_ptr, namelen;
+	__u32 msg_uflags = 0;
 	ssize_t ret, count;
 	bool short_write;
 
@@ -556,8 +556,11 @@ static ssize_t copy_datagram_to_user(struct user_oob_msghdr __user *u_msghdr,
 
 	count = evl_net_skb_to_uio(iov, iovlen, skb, sizeof(struct iphdr), &short_write);
 
-	if (u_msghdr && short_write)
-		ret = raw_put_user(msg_uflags | MSG_TRUNC, &u_msghdr->flags);
+	if (u_msghdr) {
+		if (short_write)
+			msg_uflags |= MSG_TRUNC;
+		ret = raw_put_user(msg_uflags, &u_msghdr->flags);
+	}
 
 	return ret ? -EFAULT : count;
 }
@@ -630,7 +633,7 @@ static ssize_t receive_udp(struct evl_socket *esk,
 			ret = evl_copy_iots_rx(skb, u_msghdr);
 
 		if (likely(!ret))
-			ret = copy_datagram_to_user(u_msghdr, iov, iovlen, skb, msg_uflags);
+			ret = copy_datagram_to_user(u_msghdr, iov, iovlen, skb);
 
 		evl_net_uncharge_skb_rmem(skb);
 		evl_net_free_skb(skb);
