@@ -25,7 +25,8 @@ DECLARE_WAIT_QUEUE_HEAD(evl_arp_event);
 
 static struct evl_net_arp_entry *alloc_arp_entry(
 	struct net_device *dev,
-	__be32 addr, unsigned char *ha) /* in-band */
+	__be32 addr, unsigned char *ha,
+	u8 nud_state) /* in-band */
 {
 	struct evl_net_arp_entry *e;
 
@@ -33,6 +34,7 @@ static struct evl_net_arp_entry *alloc_arp_entry(
 	if (!e)
 		return NULL;
 
+	e->nud_state = nud_state;
 	e->key.dev = dev;
 	e->key.addr = addr;
 	if (ha)
@@ -106,7 +108,7 @@ static int cache_arp_entry(struct evl_cache *cache, struct neighbour *neigh) /* 
 	struct evl_net_arp_entry *e;
 	int ret;
 
-	e = alloc_arp_entry(neigh->dev, addr, neigh->ha);
+	e = alloc_arp_entry(neigh->dev, addr, neigh->ha, neigh->nud_state);
 	if (!e)
 		return -ENOMEM;
 
