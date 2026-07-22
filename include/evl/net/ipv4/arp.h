@@ -17,6 +17,8 @@ struct evl_net_arp_entry {
 	struct evl_cache_entry entry;
 	/* Device reference tracker. */
 	netdevice_tracker dev_tracker;
+	/* Detection state flags. */
+	u8 nud_state;
 	/* Cached hardware address. */
 	unsigned char ha[ALIGN(MAX_ADDR_LEN, sizeof(unsigned long))] __aligned(8);
 	/* Index key. */
