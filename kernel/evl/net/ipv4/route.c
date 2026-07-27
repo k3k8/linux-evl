@@ -109,22 +109,26 @@ void evl_net_learn_ipv4_route(struct net *net,
 
 	e = kzalloc(sizeof(*e) + sizeof(fl4->daddr), GFP_ATOMIC);
 	if (!e)
-		goto warn;
+		goto noentry;
 
 	e->rt = rt_dst_clone(dev, rt);
+	if (!e->rt)
+		goto nodst;
+
 	e->flowi4.saddr = fl4->saddr;
 	e->flowi4.daddr = fl4->daddr;
 	*(__be32 *)e->key = fl4->daddr;
 	netdev_dbg(dev, "caching route to %pI4\n", &fl4->daddr);
 	ret = evl_add_cache_entry(&nets->ipv4.routes, &e->entry);
-	if (ret) {
-		ip_rt_put(e->rt);
-		kfree(e);
-		goto warn;
-	}
+	if (ret)
+		goto nocache;
 
 	return;
-warn:
+nocache:
+	ip_rt_put(e->rt);
+nodst:
+	kfree(e);
+noentry:
 	printk(EVL_WARNING "out of memory for IPv4 route cache\n");
 }
 
