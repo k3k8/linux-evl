@@ -419,7 +419,7 @@ static ssize_t send_udp(struct evl_socket *esk,
 	ret = find_egress_path(esk, daddr, &ert, &earp, &pseudo_earp, msg_flags);
 	if (ret) {
 		if (ret != -EADDRNOTAVAIL ||
-		    msg_flags & (MSG_PROBE|MSG_DONTWAIT|MSG_STEADY))
+		    msg_flags & (MSG_PROBE|MSG_STEADY))
 			return ret;
 
 		/*
