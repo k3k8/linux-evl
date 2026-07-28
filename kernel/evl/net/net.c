@@ -237,7 +237,16 @@ static ssize_t ipv4_routes_store(struct device *dev,
 }
 static DEVICE_ATTR_RW(ipv4_routes);
 
-static ssize_t ipv4_flush_arp_store(struct device *dev,
+static ssize_t ipv4_arp_show(struct device *dev,
+			struct device_attribute *attr,
+			char *buf)
+{
+	struct net *net = current->nsproxy->net_ns;
+
+	return evl_net_show_arp(net, buf);
+}
+
+static ssize_t ipv4_arp_store(struct device *dev,
 			struct device_attribute *attr,
 			const char *buf, size_t count)
 {
@@ -247,13 +256,13 @@ static ssize_t ipv4_flush_arp_store(struct device *dev,
 
 	return count;
 }
-static DEVICE_ATTR_WO(ipv4_flush_arp);
+static DEVICE_ATTR_RW(ipv4_arp);
 
 static struct attribute *net_attrs[] = {
 	&dev_attr_vlans.attr,
 	&dev_attr_ipv4_solicit_timeout.attr,
 	&dev_attr_ipv4_routes.attr,
-	&dev_attr_ipv4_flush_arp.attr,
+	&dev_attr_ipv4_arp.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(net);
