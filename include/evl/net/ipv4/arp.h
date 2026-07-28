@@ -47,6 +47,8 @@ struct evl_net_arp_entry *
 evl_net_get_arp_entry_or_pseudo(struct net_device *dev, __be32 addr,
 				struct evl_net_arp_entry *pseudo_earp);
 
+ssize_t evl_net_show_arp(struct net *net, char *buf);
+
 static inline void evl_net_put_arp_entry(struct evl_net_arp_entry *earp)
 {
 	evl_put_cache_entry(&earp->entry);
