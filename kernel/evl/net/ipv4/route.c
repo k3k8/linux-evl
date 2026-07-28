@@ -81,7 +81,7 @@ int evl_net_init_ipv4_routing(struct net *net)
 
 void evl_net_cleanup_ipv4_routing(struct net *net)
 {
-	evl_net_ipv4_flush_cache(net);
+	evl_net_ipv4_flush_routes(net);
 }
 
 /*
@@ -179,7 +179,7 @@ void evl_net_ipv4_purge_src(struct net *net, struct in_ifaddr *ifa)
 	evl_purge_cache(&net->oob.ipv4.routes, compare_route_src, ifa);
 }
 
-void evl_net_ipv4_flush_cache(struct net *net)
+void evl_net_ipv4_flush_routes(struct net *net)
 {
 	evl_flush_cache(&net->oob.ipv4.routes);
 }
@@ -203,3 +203,40 @@ struct evl_net_route *evl_net_route_ipv4_output(struct net *net, __be32 daddr)
 	return NULL;
 }
 EXPORT_SYMBOL_GPL(evl_net_route_ipv4_output);
+
+struct __evl_cache_show_cursor {
+	char *buf;
+	ssize_t len;
+};
+
+static int show_route_entry(struct evl_cache_entry *entry, void *arg)
+{
+	struct evl_net_route *e =
+		container_of(entry, struct evl_net_route, entry);
+	struct __evl_cache_show_cursor *c = arg;
+	ssize_t ret;
+
+	if (c->len >= PAGE_SIZE)
+		return 0;
+
+	ret = sysfs_emit_at(c->buf, c->len, "%s %pI4 %pI4\n",
+			netdev_name(evl_net_route_dev(e)),
+			&e->flowi4.saddr, &e->flowi4.daddr);
+	if (ret < 0)
+		return ret;
+
+	c->len += ret;
+
+	return 0;
+}
+
+ssize_t evl_net_ipv4_show_routes(struct net *net, char *buf)
+{
+	struct __evl_cache_show_cursor c = {
+		.buf = buf,
+		.len = 0,
+	};
+
+	return evl_walk_cache(&net->oob.ipv4.routes, show_route_entry, &c) ?:
+		c.len;
+}

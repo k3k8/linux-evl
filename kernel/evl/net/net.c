@@ -216,17 +216,26 @@ static ssize_t ipv4_solicit_timeout_store(struct device *dev,
 }
 static DEVICE_ATTR_RW(ipv4_solicit_timeout);
 
-static ssize_t ipv4_flush_routes_store(struct device *dev,
+static ssize_t ipv4_routes_show(struct device *dev,
+			struct device_attribute *attr,
+			char *buf)
+{
+	struct net *net = current->nsproxy->net_ns;
+
+	return evl_net_ipv4_show_routes(net, buf);
+}
+
+static ssize_t ipv4_routes_store(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf, size_t count)
 {
 	struct net *net = current->nsproxy->net_ns;
 
-	evl_net_ipv4_flush_cache(net);
+	evl_net_ipv4_flush_routes(net);
 
 	return count;
 }
-static DEVICE_ATTR_WO(ipv4_flush_routes);
+static DEVICE_ATTR_RW(ipv4_routes);
 
 static ssize_t ipv4_flush_arp_store(struct device *dev,
 			struct device_attribute *attr,
@@ -243,7 +252,7 @@ static DEVICE_ATTR_WO(ipv4_flush_arp);
 static struct attribute *net_attrs[] = {
 	&dev_attr_vlans.attr,
 	&dev_attr_ipv4_solicit_timeout.attr,
-	&dev_attr_ipv4_flush_routes.attr,
+	&dev_attr_ipv4_routes.attr,
 	&dev_attr_ipv4_flush_arp.attr,
 	NULL,
 };
