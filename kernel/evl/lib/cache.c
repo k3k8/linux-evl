@@ -273,6 +273,35 @@ struct evl_cache_entry *evl_lookup_cache(struct evl_cache *cache,
 EXPORT_SYMBOL_GPL(evl_lookup_cache);
 
 /* in-band / oob */
+int evl_walk_cache(struct evl_cache *cache,
+		int (*walkfn)(struct evl_cache_entry *e, void *arg),
+		void *arg)
+{
+	struct evl_cache_entry *e;
+	struct evl_hash_table *ht;
+	int n, ret = 0;
+
+	rcu_read_lock();
+
+	ht = rcu_dereference(cache->hash_table);
+	if (likely(ht)) {
+		for (n = 0; n < (1 << ht->shift); n++) {
+			for (e = rcu_dereference(ht->buckets[n]);
+			     e; e = rcu_dereference(e->next)) {
+				ret = walkfn(e, arg);
+				if (ret)
+					goto out;
+			}
+		}
+	}
+out:
+	rcu_read_unlock();
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(evl_walk_cache);
+
+/* in-band / oob */
 void evl_put_cache_entry(struct evl_cache_entry *entry)
 {
 	if (refcount_dec_and_test(&entry->refcnt)) {
