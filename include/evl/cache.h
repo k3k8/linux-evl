@@ -85,6 +85,10 @@ void evl_del_cache_entry_locked(struct evl_cache *cache,
 struct evl_cache_entry *evl_lookup_cache(struct evl_cache *cache,
 					const void *key);
 
+int evl_walk_cache(struct evl_cache *cache,
+		int (*walkfn)(struct evl_cache_entry *e, void *arg),
+		void *arg);
+
 static inline void evl_get_cache_entry(struct evl_cache_entry *entry)
 {
 	refcount_inc(&entry->refcnt);
