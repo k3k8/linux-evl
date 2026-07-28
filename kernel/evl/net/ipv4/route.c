@@ -81,7 +81,7 @@ int evl_net_init_ipv4_routing(struct net *net)
 
 void evl_net_cleanup_ipv4_routing(struct net *net)
 {
-	evl_flush_cache(&net->oob.ipv4.routes);
+	evl_net_ipv4_flush_cache(net);
 }
 
 /*
@@ -181,7 +181,7 @@ void evl_net_ipv4_purge_src(struct net *net, struct in_ifaddr *ifa)
 
 void evl_net_ipv4_flush_cache(struct net *net)
 {
-	evl_purge_cache(&net->oob.ipv4.routes, NULL, NULL);
+	evl_flush_cache(&net->oob.ipv4.routes);
 }
 
 /*
