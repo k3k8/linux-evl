@@ -27,10 +27,12 @@ void evl_net_ipv4_purge_dev(struct net *net, struct net_device *dev);
 
 void evl_net_ipv4_purge_src(struct net *net, struct in_ifaddr *ifa);
 
-void evl_net_ipv4_flush_cache(struct net *net);
+void evl_net_ipv4_flush_routes(struct net *net);
 
 struct evl_net_route *evl_net_get_ipv4_route(struct net *net, __be32 daddr);
 
 struct evl_net_route *evl_net_route_ipv4_output(struct net *net, __be32 daddr);
+
+ssize_t evl_net_ipv4_show_routes(struct net *net, char *buf);
 
 #endif /* !_EVL_NET_IPV4_ROUTE_H */
