@@ -370,9 +370,6 @@ static void disable_oob_port(struct net_device *dev) /* inband, rtnl_lock held *
 	if (!netif_oob_port(dev))
 		return;
 
-	/* Remove the oob-enabled device from the routing system. */
-	evl_net_del_route_dev(dev);
-
 	/* Force unbind any socket bound to the downed device. */
 	drop_bindings(nds);
 
@@ -383,6 +380,12 @@ static void disable_oob_port(struct net_device *dev) /* inband, rtnl_lock held *
 	 * the latter off before passing the crossing.
 	 */
 	netif_disable_oob_port(dev);
+
+	/*
+	 * Remove the oob-enabled device from the routing system once
+	 * the oob port is down.
+	 */
+	evl_net_del_route_dev(dev);
 
 	real_dev = evl_net_real_dev(dev);
 	if (dev != real_dev) {
