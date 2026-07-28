@@ -306,6 +306,55 @@ void evl_net_flush_arp(struct net *net, struct net_device *dev)
 		evl_flush_cache(&nets->ipv4.arp);
 }
 
+struct __evl_cache_show_cursor {
+	char *buf;
+	ssize_t len;
+};
+
+static inline char get_nud_symbolic(u8 nud_state)
+{
+	if (nud_state & NUD_NOARP)
+		return 'N';	/* Placeholder. */
+
+	if (nud_state & NUD_PERMANENT)
+		return 'P';	/* Permanently reachable. */
+
+	return 'R';		/* Reachable for now but aging. */
+}
+
+static int show_arp_entry(struct evl_cache_entry *entry, void *arg)
+{
+	const struct evl_net_arp_entry *e =
+		container_of(entry, struct evl_net_arp_entry, entry);
+	struct __evl_cache_show_cursor *c = arg;
+	ssize_t ret;
+
+	if (c->len >= PAGE_SIZE)
+		return 0;
+
+	ret = sysfs_emit_at(c->buf, c->len, "%c %s %pM %pI4\n",
+			get_nud_symbolic(e->nud_state),
+			netdev_name(e->key.dev),
+			e->ha, &e->key.addr);
+	if (ret < 0)
+		return ret;
+
+	c->len += ret;
+
+	return 0;
+}
+
+ssize_t evl_net_show_arp(struct net *net, char *buf)
+{
+	struct __evl_cache_show_cursor c = {
+		.buf = buf,
+		.len = 0,
+	};
+
+	return evl_walk_cache(&net->oob.ipv4.arp, show_arp_entry, &c) ?:
+		c.len;
+}
+
 int evl_net_init_arp(struct net *net)
 {
 	struct oob_net_state *nets = &net->oob;
