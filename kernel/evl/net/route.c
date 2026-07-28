@@ -27,8 +27,7 @@ void ip_learn_oob_route(struct net *net, struct flowi4 *fl4, struct rtable *rt)
  */
 void evl_net_del_route_dev(struct net_device *dev)
 {
-  	if  (!EVL_WARN_ON(NET, !netif_oob_port(dev)))
-		return;
+	EVL_WARN_ON(NET, netif_oob_port(dev));
 
 	if (rcu_access_pointer(dev->ip_ptr)) {
 		evl_net_ipv4_purge_dev(dev_net(dev), dev);
