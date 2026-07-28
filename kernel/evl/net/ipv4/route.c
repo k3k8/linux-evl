@@ -96,15 +96,18 @@ void evl_net_learn_ipv4_route(struct net *net,
 	struct oob_net_state *nets = &net->oob;
 	struct net_device *dev = rt->dst.dev;
 	struct evl_net_route *e;
+	bool dup;
 	int ret;
 
 	netdev_dbg(dev, "learning ipv4 route: %pI4 -> %pI4 via %s\n",
 		   &fl4->saddr, &fl4->daddr, netdev_name(dev));
 
 	e = evl_net_get_ipv4_route(net, fl4->daddr);
-	if (e && e->rt->dst.dev == dev) {
+	if (e) {
+		dup = e->rt->dst.dev == dev;
 		evl_net_put_route(e);
-		return;
+		if (dup)
+			return;
 	}
 
 	e = kzalloc(sizeof(*e) + sizeof(fl4->daddr), GFP_ATOMIC);
