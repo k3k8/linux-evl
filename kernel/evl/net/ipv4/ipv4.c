@@ -219,9 +219,15 @@ out:
 	if (e) {
 		/* We never downgrade the permanent state. */
 		if (flags & EVL_NEIGH_PERMANENT &&
-			!(neigh->nud_state & NUD_PERMANENT))
+			!(neigh->nud_state & NUD_PERMANENT)) {
 			ret = neigh_update(neigh, e->ha, NUD_PERMANENT,
 				NEIGH_UPDATE_F_OVERRIDE | NEIGH_UPDATE_F_ADMIN, 0);
+			/*
+			 * Mirror the new NUD state to the cached
+			 * entry. Using WRITE_ONCE() is paranoid ATM.
+			 */
+			WRITE_ONCE(e->nud_state, neigh->nud_state);
+		}
 		evl_net_put_arp_entry(e);
 	}
 
