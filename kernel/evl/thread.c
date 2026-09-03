@@ -2614,7 +2614,7 @@ thread_factory_build(struct evl_factory *fac, const char __user *u_name,
 	 */
 	evl_get_element(&curr->element);
 
-	strncpy(comm, evl_element_name(&curr->element), sizeof(comm));
+	strscpy(comm, evl_element_name(&curr->element), sizeof(comm));
 	comm[sizeof(comm) - 1] = '\0';
 	set_task_comm(tsk, comm);
 	proc_comm_connector(tsk);
