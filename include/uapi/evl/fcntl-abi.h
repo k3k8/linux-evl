@@ -11,6 +11,6 @@
  * EVL-specific open mode. Must match kernel UAPI in
  * include/uapi/asm-generic/fcntl.h.
  */
-#define O_OOB	010000000000	/* Request out-of-band capabilities */
+#define O_OOB	(1 << 29)	/* Request out-of-band capabilities */
 
 #endif /* !_EVL_UAPI_FCNTL_ABI_H */
